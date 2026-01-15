@@ -1,4 +1,4 @@
-<a href="debug.html">デバッグ画面へ</a> <br>
+
 <?php
 // sensor.php
 // -------------------- 設定・DB接続 --------------------
@@ -108,6 +108,7 @@ pg_close($conn);
 <html>
 <head>
 <meta charset="UTF-8">
+<a href="debug.html">デバッグ画面へ</a> <br>
 <title>Sensor Monitor</title>
 <style>
     body { font-family: sans-serif; }
