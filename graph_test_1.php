@@ -1,6 +1,18 @@
 <?php
+// ==================================================
+// ★設定エリア (ここを変更してください)
+// ==================================================
+// 1. 自動更新機能を使うか (true: 使う, false: 使わない)
+$enable_auto_reload = true; 
+
+// 2. 緑色のバーを表示するか (true: 表示, false: 非表示)
+// ※ 自動更新がOFFの場合は、バーも自動的に消えます
+$show_progress_bar  = false; 
+// ==================================================
+
+
 // --------------------------------------------------
-// 1. 設定とパラメータ取得
+// 1. DB接続設定
 // --------------------------------------------------
 $host = '10.100.56.163'; 
 $port = '5432';
@@ -10,7 +22,6 @@ $pass = 'Gthree';
 
 $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
 
-// 日付と部屋のパラメータ取得
 $target_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
 $target_room = isset($_GET['room']) ? $_GET['room'] : 1;
 
@@ -34,7 +45,7 @@ try {
     $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // --------------------------------------------------
-    // 3. データ整形 ＆ 最終更新時間の取得
+    // 3. データ整形
     // --------------------------------------------------
     $labels = []; 
     $data_temp = [];
@@ -42,11 +53,9 @@ try {
     $data_co2 = [];
     $data_illu = [];
 
-    // 最終更新時間の初期値
     $last_update_text = "--:--:--";
 
     if (!empty($results)) {
-        // データがある場合、配列の最後(=最新)の時間を取得
         $last_row = end($results); 
         $last_update_text = date('H:i:s', strtotime($last_row['measured_at']));
 
@@ -80,22 +89,35 @@ try {
             background-color: #f0f0f0; 
             border-radius: 8px; 
             display: inline-block;
-            text-align: left; /* 中身を左寄せにして整列 */
+            text-align: left;
         }
         select, input { padding: 5px 10px; font-size: 16px; margin: 0 5px; }
         label { font-weight: bold; margin-left: 15px; }
         label:first-child { margin-left: 0; }
         
-        /* 最終更新時間のスタイル */
         .last-update {
             margin-left: 10px;
             font-size: 0.9em;
             color: #555;
             font-weight: bold;
         }
+        
+        /* バーのスタイル（PHPの設定によって表示・非表示制御） */
+        #progress-bar {
+            width: 0%;
+            height: 4px;
+            background-color: #4caf50;
+            position: fixed;
+            top: 0;
+            left: 0;
+            transition: width 1s linear;
+            /* バーの設定がOFFならCSSでも消しておく */
+            display: <?php echo ($enable_auto_reload && $show_progress_bar) ? 'block' : 'none'; ?>;
+        }
     </style>
 </head>
 <body>
+    <div id="progress-bar"></div>
 
     <div class="controls">
         <form action="" method="GET" style="display: inline;">
@@ -148,6 +170,12 @@ try {
         };
 
         if (labels.length > 0) {
+            // localStorageから選択項目を復元
+            const savedSensor = localStorage.getItem('selectedSensor') || 'temperature';
+            document.getElementById('sensorSelect').value = savedSensor;
+            
+            const initialData = allData[savedSensor];
+
             const chartOptions = {
                 responsive: true,
                 scales: {
@@ -158,7 +186,7 @@ try {
                     y: {
                         title: {
                             display: true,
-                            text: '値',
+                            text: initialData.label,
                             rotation: 0,
                             align: 'end',
                             font: { weight: 'bold' },
@@ -170,17 +198,16 @@ try {
             };
 
             const ctx = document.getElementById('myChart').getContext('2d');
-            chartOptions.scales.y.title.text = allData.temperature.label;
-
+            
             let myChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: allData.temperature.label,
-                        data: allData.temperature.data,
-                        borderColor: allData.temperature.color,
-                        backgroundColor: allData.temperature.color,
+                        label: initialData.label,
+                        data: initialData.data,
+                        borderColor: initialData.color,
+                        backgroundColor: initialData.color,
                         tension: 0.1,
                         fill: false,
                         pointRadius: 2
@@ -191,6 +218,8 @@ try {
 
             window.changeSensor = function() {
                 const selectedKey = document.getElementById('sensorSelect').value;
+                localStorage.setItem('selectedSensor', selectedKey);
+
                 const target = allData[selectedKey];
 
                 myChart.data.datasets[0].data = target.data;
@@ -199,6 +228,34 @@ try {
                 myChart.data.datasets[0].backgroundColor = target.color;
                 myChart.options.scales.y.title.text = target.label;
                 myChart.update();
+            }
+
+            // ------------------------------------------------
+            // 3. 自動更新ロジック (PHPの設定値を反映)
+            // ------------------------------------------------
+            // PHPの変数をJavaScriptに渡す
+            const enableAutoReload = <?php echo json_encode($enable_auto_reload); ?>;
+
+            if (enableAutoReload) {
+                let timeLeft = 0;
+                const updateInterval = 10; // 秒
+
+                setInterval(() => {
+                    timeLeft++;
+                    
+                    // バーの要素を取得
+                    const progressBar = document.getElementById('progress-bar');
+                    
+                    // バーが存在する（表示設定がON）なら長さを変える
+                    if (progressBar && progressBar.style.display !== 'none') {
+                        const percentage = (timeLeft / updateInterval) * 100;
+                        progressBar.style.width = percentage + '%';
+                    }
+
+                    if (timeLeft >= updateInterval) {
+                        window.location.reload(); 
+                    }
+                }, 1000);
             }
         }
     </script>
