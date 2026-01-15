@@ -36,7 +36,9 @@ try {
     $data_points = [];
 
     foreach ($results as $row) {
-        $labels[] = $row['measured_at']; 
+        // strtotimeで時間を読み込んで、'H:i:s' (時:分:秒) の形式に変換します
+        $labels[] = date('H:i:s', strtotime($row['measured_at'])); 
+        
         $data_points[] = $row['temperature'];
     }
 
