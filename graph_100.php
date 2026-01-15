@@ -1,25 +1,23 @@
 <?php
-// ==================================================
-// ★設定エリア (ここを変更してください)
-// ==================================================
-// 1. 自動更新機能を使うか (true: 使う, false: 使わない)
-$enable_auto_reload = true; 
+/*
+    name : graph page ver 1.0.0
+*/
+?>
 
-// 2. 緑色のバーを表示するか (true: 表示, false: 非表示)
-// ※ 自動更新がOFFの場合は、バーも自動的に消えます
-$show_progress_bar  = false; 
+<?php
+// ==================================================
+// ★設定エリア
+// ==================================================
+$enable_auto_reload = true;  // 自動更新を使うか
+$show_progress_bar  = false;  // 緑のバーを表示するか
 // ==================================================
 
-
-// --------------------------------------------------
 // 1. DB接続設定
-// --------------------------------------------------
 $host = '10.100.56.163'; 
 $port = '5432';
 $dbname = 'group3';
 $user = 'gthree';
 $pass = 'Gthree';
-
 $dsn = "pgsql:host={$host};port={$port};dbname={$dbname}";
 
 $target_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
@@ -29,9 +27,7 @@ try {
     $pdo = new PDO($dsn, $user, $pass);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // --------------------------------------------------
     // 2. データ取得
-    // --------------------------------------------------
     $sql = "SELECT measured_at, temperature, humidity, co2, illuminance 
             FROM sensor_logs 
             WHERE room_id = :target_room 
@@ -44,15 +40,12 @@ try {
     $stmt->execute();
     $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // --------------------------------------------------
     // 3. データ整形
-    // --------------------------------------------------
     $labels = []; 
     $data_temp = [];
     $data_hum = [];
     $data_co2 = [];
     $data_illu = [];
-
     $last_update_text = "--:--:--";
 
     if (!empty($results)) {
@@ -84,35 +77,36 @@ try {
     <style>
         body { font-family: sans-serif; text-align: center; }
         .controls { 
-            margin: 20px; 
-            padding: 15px; 
-            background-color: #f0f0f0; 
-            border-radius: 8px; 
-            display: inline-block;
-            text-align: left;
+            margin: 20px; padding: 15px; 
+            background-color: #f0f0f0; border-radius: 8px; 
+            display: inline-block; text-align: left;
         }
         select, input { padding: 5px 10px; font-size: 16px; margin: 0 5px; }
         label { font-weight: bold; margin-left: 15px; }
         label:first-child { margin-left: 0; }
         
-        .last-update {
-            margin-left: 10px;
-            font-size: 0.9em;
-            color: #555;
-            font-weight: bold;
-        }
+        .last-update { margin-left: 10px; font-size: 0.9em; color: #555; font-weight: bold; }
         
-        /* バーのスタイル（PHPの設定によって表示・非表示制御） */
         #progress-bar {
-            width: 0%;
-            height: 4px;
-            background-color: #4caf50;
-            position: fixed;
-            top: 0;
-            left: 0;
-            transition: width 1s linear;
-            /* バーの設定がOFFならCSSでも消しておく */
+            width: 0%; height: 4px; background-color: #4caf50;
+            position: fixed; top: 0; left: 0; transition: width 1s linear;
             display: <?php echo ($enable_auto_reload && $show_progress_bar) ? 'block' : 'none'; ?>;
+        }
+
+        /* ▼▼▼ 追加したCSS ▼▼▼ */
+        /* 4分割表示用のグリッドレイアウト */
+        #multi-view-container {
+            display: none; /* 初期状態は非表示 */
+            grid-template-columns: 1fr 1fr; /* 横2列 */
+            gap: 20px;
+            width: 90%;
+            margin: auto;
+        }
+        .chart-box {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
         }
     </style>
 </head>
@@ -138,30 +132,39 @@ try {
 
         <label for="sensorSelect">項目:</label>
         <select id="sensorSelect" onchange="changeSensor()">
+            <option value="all">すべて</option>
             <option value="temperature">温度</option>
             <option value="humidity">湿度</option>
             <option value="co2">二酸化炭素</option>
             <option value="illuminance">光度</option>
         </select>
 
-        <span class="last-update">
-            (最終更新: <?php echo $last_update_text; ?>)
-        </span>
+        <span class="last-update">(最終更新: <?php echo $last_update_text; ?>)</span>
     </div>
 
     <div style="width: 80%; margin: auto;">
         <?php if (empty($results)): ?>
-            <p style="color: red; margin-top: 50px;">
-                ※ 選択された部屋・日付のデータはありません。
-            </p>
+            <p style="color: red; margin-top: 50px;">※ 選択された部屋・日付のデータはありません。</p>
         <?php else: ?>
-            <canvas id="myChart"></canvas>
+            
+            <div id="single-view-container">
+                <canvas id="myChart"></canvas>
+            </div>
+
+            <div id="multi-view-container">
+                <div class="chart-box"><canvas id="chartTemp"></canvas></div>
+                <div class="chart-box"><canvas id="chartHum"></canvas></div>
+                <div class="chart-box"><canvas id="chartCo2"></canvas></div>
+                <div class="chart-box"><canvas id="chartIllu"></canvas></div>
+            </div>
+
         <?php endif; ?>
     </div>
 
     <script>
         const labels = <?php echo json_encode($labels); ?>;
         
+        // 全データを定義
         const allData = {
             temperature: { data: <?php echo json_encode($data_temp); ?>, label: '温度 (℃)', color: 'rgb(255, 99, 132)' },
             humidity:    { data: <?php echo json_encode($data_hum); ?>,  label: '湿度 (%)',  color: 'rgb(54, 162, 235)' },
@@ -170,91 +173,151 @@ try {
         };
 
         if (labels.length > 0) {
-            // localStorageから選択項目を復元
+            // 単体表示用チャートインスタンス
+            let singleChart = null;
+            // 4分割表示用チャートインスタンス管理用
+            let multiCharts = {}; 
+
+            // 共通オプション作成関数
+            function createOptions(titleText) {
+                return {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            ticks: { maxTicksLimit: 10, autoSkip: true }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: titleText,
+                                rotation: 0,
+                                align: 'end',
+                                font: { weight: 'bold' },
+                                padding: { top: 0, bottom: 0, y: 10 }
+                            },
+                            beginAtZero: false
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }, // 小さいグラフは見出しがあるので凡例を消す
+                        title: { display: true, text: titleText } // グラフ上部にタイトル
+                    }
+                };
+            }
+
+            // 初期化処理
             const savedSensor = localStorage.getItem('selectedSensor') || 'temperature';
             document.getElementById('sensorSelect').value = savedSensor;
             
-            const initialData = allData[savedSensor];
+            // 初回表示実行
+            updateView(savedSensor);
 
-            const chartOptions = {
-                responsive: true,
-                scales: {
-                    x: {
-                        title: { display: true, text: '測定時間' },
-                        ticks: { maxTicksLimit: 20, autoSkip: true }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: initialData.label,
-                            rotation: 0,
-                            align: 'end',
-                            font: { weight: 'bold' },
-                            padding: { top: 0, bottom: 0, y: 10 }
-                        },
-                        beginAtZero: false
-                    }
-                }
-            };
-
-            const ctx = document.getElementById('myChart').getContext('2d');
-            
-            let myChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: initialData.label,
-                        data: initialData.data,
-                        borderColor: initialData.color,
-                        backgroundColor: initialData.color,
-                        tension: 0.1,
-                        fill: false,
-                        pointRadius: 2
-                    }]
-                },
-                options: chartOptions
-            });
-
+            // 切り替え処理 (グローバル関数)
             window.changeSensor = function() {
                 const selectedKey = document.getElementById('sensorSelect').value;
                 localStorage.setItem('selectedSensor', selectedKey);
-
-                const target = allData[selectedKey];
-
-                myChart.data.datasets[0].data = target.data;
-                myChart.data.datasets[0].label = target.label;
-                myChart.data.datasets[0].borderColor = target.color;
-                myChart.data.datasets[0].backgroundColor = target.color;
-                myChart.options.scales.y.title.text = target.label;
-                myChart.update();
+                updateView(selectedKey);
             }
 
-            // ------------------------------------------------
-            // 3. 自動更新ロジック (PHPの設定値を反映)
-            // ------------------------------------------------
-            // PHPの変数をJavaScriptに渡す
-            const enableAutoReload = <?php echo json_encode($enable_auto_reload); ?>;
+            // 表示更新ロジック
+            function updateView(key) {
+                const singleContainer = document.getElementById('single-view-container');
+                const multiContainer  = document.getElementById('multi-view-container');
 
+                if (key === 'all') {
+                    // --- すべて表示モード ---
+                    singleContainer.style.display = 'none';
+                    multiContainer.style.display = 'grid'; // グリッド表示にする
+
+                    // 4つのグラフがまだ作られていなければ作成する
+                    if (Object.keys(multiCharts).length === 0) {
+                        createMultiChart('chartTemp', 'temperature');
+                        createMultiChart('chartHum',  'humidity');
+                        createMultiChart('chartCo2',  'co2');
+                        createMultiChart('chartIllu', 'illuminance');
+                    }
+
+                } else {
+                    // --- 単体表示モード ---
+                    multiContainer.style.display = 'none';
+                    singleContainer.style.display = 'block';
+
+                    const target = allData[key];
+
+                    // 単体グラフが存在しなければ作成、あれば更新
+                    if (!singleChart) {
+                        const ctx = document.getElementById('myChart').getContext('2d');
+                        singleChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: target.label,
+                                    data: target.data,
+                                    borderColor: target.color,
+                                    backgroundColor: target.color,
+                                    tension: 0.1,
+                                    fill: false,
+                                    pointRadius: 2
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    x: { title: { display: true, text: '測定時間' }, ticks: { maxTicksLimit: 20 } },
+                                    y: {
+                                        title: { display: true, text: target.label, rotation: 0, align: 'end', font: { weight: 'bold' } },
+                                        beginAtZero: false
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        // データ更新
+                        singleChart.data.datasets[0].data = target.data;
+                        singleChart.data.datasets[0].label = target.label;
+                        singleChart.data.datasets[0].borderColor = target.color;
+                        singleChart.data.datasets[0].backgroundColor = target.color;
+                        singleChart.options.scales.y.title.text = target.label;
+                        singleChart.update();
+                    }
+                }
+            }
+
+            // 小さいグラフを作成するヘルパー関数
+            function createMultiChart(canvasId, dataKey) {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                const target = allData[dataKey];
+                
+                multiCharts[dataKey] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: target.data,
+                            borderColor: target.color,
+                            backgroundColor: target.color,
+                            tension: 0.1,
+                            pointRadius: 1, // 点をさらに小さく
+                            borderWidth: 1.5 // 線を少し細く
+                        }]
+                    },
+                    options: createOptions(target.label)
+                });
+            }
+
+            // 自動更新ロジック
+            const enableAutoReload = <?php echo json_encode($enable_auto_reload); ?>;
             if (enableAutoReload) {
                 let timeLeft = 0;
-                const updateInterval = 10; // 秒
-
+                const updateInterval = 10;
                 setInterval(() => {
                     timeLeft++;
-                    
-                    // バーの要素を取得
                     const progressBar = document.getElementById('progress-bar');
-                    
-                    // バーが存在する（表示設定がON）なら長さを変える
                     if (progressBar && progressBar.style.display !== 'none') {
-                        const percentage = (timeLeft / updateInterval) * 100;
-                        progressBar.style.width = percentage + '%';
+                        progressBar.style.width = (timeLeft / updateInterval) * 100 + '%';
                     }
-
-                    if (timeLeft >= updateInterval) {
-                        window.location.reload(); 
-                    }
+                    if (timeLeft >= updateInterval) window.location.reload();
                 }, 1000);
             }
         }
