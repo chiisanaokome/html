@@ -1,15 +1,14 @@
 <?php
 /*
-    name : graph page ver 1.0.0
+    name : graph page ver 1.1.0
+    description : Added latest value display below charts
 */
-?>
 
-<?php
 // ==================================================
 // ★設定エリア
 // ==================================================
 $enable_auto_reload = true;  // 自動更新を使うか
-$show_progress_bar  = false;  // 緑のバーを表示するか
+$show_progress_bar  = false; // 緑のバーを表示するか
 // ==================================================
 
 // 1. DB接続設定
@@ -93,11 +92,10 @@ try {
             display: <?php echo ($enable_auto_reload && $show_progress_bar) ? 'block' : 'none'; ?>;
         }
 
-        /* ▼▼▼ 追加したCSS ▼▼▼ */
-        /* 4分割表示用のグリッドレイアウト */
+        /* ▼▼▼ グリッドレイアウト ▼▼▼ */
         #multi-view-container {
-            display: none; /* 初期状態は非表示 */
-            grid-template-columns: 1fr 1fr; /* 横2列 */
+            display: none; 
+            grid-template-columns: 1fr 1fr; 
             gap: 20px;
             width: 90%;
             margin: auto;
@@ -107,7 +105,30 @@ try {
             border: 1px solid #ddd;
             border-radius: 5px;
             padding: 10px;
+            /* 下部にマージンを追加 */
+            margin-bottom: 20px;
         }
+
+        /* ▼▼▼ 追加: 数値表示エリアのデザイン ▼▼▼ */
+        .value-display {
+            margin-top: 10px;       /* グラフとの間隔 */
+            padding-top: 5px;
+            border-top: 1px solid #eee; /* 区切り線 */
+            text-align: center;
+            font-size: 24px;        /* 文字サイズ大 */
+            font-weight: bold;
+        }
+        .unit {
+            font-size: 14px;
+            color: #888;
+            font-weight: normal;
+            margin-left: 5px;
+        }
+        /* 各項目の色定義 */
+        .text-temp { color: rgb(255, 99, 132); }
+        .text-hum  { color: rgb(54, 162, 235); }
+        .text-co2  { color: rgb(75, 192, 192); }
+        .text-illu { color: rgb(255, 205, 86); }
     </style>
 </head>
 <body>
@@ -148,14 +169,39 @@ try {
         <?php else: ?>
             
             <div id="single-view-container">
-                <canvas id="myChart"></canvas>
+                <div class="chart-box">
+                    <canvas id="myChart"></canvas>
+                    <div id="single-value-display" class="value-display">
+                        <span id="single-val">--</span><span id="single-unit" class="unit"></span>
+                    </div>
+                </div>
             </div>
 
             <div id="multi-view-container">
-                <div class="chart-box"><canvas id="chartTemp"></canvas></div>
-                <div class="chart-box"><canvas id="chartHum"></canvas></div>
-                <div class="chart-box"><canvas id="chartCo2"></canvas></div>
-                <div class="chart-box"><canvas id="chartIllu"></canvas></div>
+                <div class="chart-box">
+                    <canvas id="chartTemp"></canvas>
+                    <div class="value-display text-temp">
+                        <span id="val-temp">--</span><span class="unit">℃</span>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <canvas id="chartHum"></canvas>
+                    <div class="value-display text-hum">
+                        <span id="val-hum">--</span><span class="unit">%</span>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <canvas id="chartCo2"></canvas>
+                    <div class="value-display text-co2">
+                        <span id="val-co2">--</span><span class="unit">ppm</span>
+                    </div>
+                </div>
+                <div class="chart-box">
+                    <canvas id="chartIllu"></canvas>
+                    <div class="value-display text-illu">
+                        <span id="val-illu">--</span><span class="unit">lx</span>
+                    </div>
+                </div>
             </div>
 
         <?php endif; ?>
@@ -164,18 +210,16 @@ try {
     <script>
         const labels = <?php echo json_encode($labels); ?>;
         
-        // 全データを定義
+        // 全データを定義（ここに単位や色クラス情報も持たせると便利です）
         const allData = {
-            temperature: { data: <?php echo json_encode($data_temp); ?>, label: '温度 (℃)', color: 'rgb(255, 99, 132)' },
-            humidity:    { data: <?php echo json_encode($data_hum); ?>,  label: '湿度 (%)',  color: 'rgb(54, 162, 235)' },
-            co2:         { data: <?php echo json_encode($data_co2); ?>,  label: 'CO2 (ppm)', color: 'rgb(75, 192, 192)' },
-            illuminance: { data: <?php echo json_encode($data_illu); ?>, label: '光度 (lx)', color: 'rgb(255, 205, 86)' }
+            temperature: { data: <?php echo json_encode($data_temp); ?>, label: '温度 (℃)', color: 'rgb(255, 99, 132)', unit: '℃', class: 'text-temp' },
+            humidity:    { data: <?php echo json_encode($data_hum); ?>,  label: '湿度 (%)',  color: 'rgb(54, 162, 235)', unit: '%',  class: 'text-hum' },
+            co2:         { data: <?php echo json_encode($data_co2); ?>,  label: 'CO2 (ppm)', color: 'rgb(75, 192, 192)', unit: 'ppm', class: 'text-co2' },
+            illuminance: { data: <?php echo json_encode($data_illu); ?>, label: '光度 (lx)', color: 'rgb(255, 205, 86)', unit: 'lx',  class: 'text-illu' }
         };
 
         if (labels.length > 0) {
-            // 単体表示用チャートインスタンス
             let singleChart = null;
-            // 4分割表示用チャートインスタンス管理用
             let multiCharts = {}; 
 
             // 共通オプション作成関数
@@ -183,24 +227,19 @@ try {
                 return {
                     responsive: true,
                     scales: {
-                        x: {
-                            ticks: { maxTicksLimit: 10, autoSkip: true }
-                        },
+                        x: { ticks: { maxTicksLimit: 10, autoSkip: true } },
                         y: {
                             title: {
-                                display: true,
-                                text: titleText,
-                                rotation: 0,
-                                align: 'end',
-                                font: { weight: 'bold' },
+                                display: true, text: titleText,
+                                rotation: 0, align: 'end', font: { weight: 'bold' },
                                 padding: { top: 0, bottom: 0, y: 10 }
                             },
                             beginAtZero: false
                         }
                     },
                     plugins: {
-                        legend: { display: false }, // 小さいグラフは見出しがあるので凡例を消す
-                        title: { display: true, text: titleText } // グラフ上部にタイトル
+                        legend: { display: false },
+                        title: { display: true, text: titleText }
                     }
                 };
             }
@@ -208,11 +247,8 @@ try {
             // 初期化処理
             const savedSensor = localStorage.getItem('selectedSensor') || 'temperature';
             document.getElementById('sensorSelect').value = savedSensor;
-            
-            // 初回表示実行
             updateView(savedSensor);
 
-            // 切り替え処理 (グローバル関数)
             window.changeSensor = function() {
                 const selectedKey = document.getElementById('sensorSelect').value;
                 localStorage.setItem('selectedSensor', selectedKey);
@@ -227,14 +263,20 @@ try {
                 if (key === 'all') {
                     // --- すべて表示モード ---
                     singleContainer.style.display = 'none';
-                    multiContainer.style.display = 'grid'; // グリッド表示にする
+                    multiContainer.style.display = 'grid';
 
-                    // 4つのグラフがまだ作られていなければ作成する
+                    // 4つのグラフ作成 & 数値更新
                     if (Object.keys(multiCharts).length === 0) {
-                        createMultiChart('chartTemp', 'temperature');
-                        createMultiChart('chartHum',  'humidity');
-                        createMultiChart('chartCo2',  'co2');
-                        createMultiChart('chartIllu', 'illuminance');
+                        createMultiChart('chartTemp', 'temperature', 'val-temp');
+                        createMultiChart('chartHum',  'humidity',    'val-hum');
+                        createMultiChart('chartCo2',  'co2',         'val-co2');
+                        createMultiChart('chartIllu', 'illuminance', 'val-illu');
+                    } else {
+                        // 既にグラフがある場合でも、最新値だけは更新しておく（リロード直後用）
+                        updateValueText('temperature', 'val-temp');
+                        updateValueText('humidity',    'val-hum');
+                        updateValueText('co2',         'val-co2');
+                        updateValueText('illuminance', 'val-illu');
                     }
 
                 } else {
@@ -244,7 +286,7 @@ try {
 
                     const target = allData[key];
 
-                    // 単体グラフが存在しなければ作成、あれば更新
+                    // グラフ更新
                     if (!singleChart) {
                         const ctx = document.getElementById('myChart').getContext('2d');
                         singleChart = new Chart(ctx, {
@@ -256,39 +298,47 @@ try {
                                     data: target.data,
                                     borderColor: target.color,
                                     backgroundColor: target.color,
-                                    tension: 0.1,
-                                    fill: false,
-                                    pointRadius: 2
+                                    tension: 0.1, fill: false, pointRadius: 2
                                 }]
                             },
-                            options: {
-                                responsive: true,
-                                scales: {
-                                    x: { title: { display: true, text: '測定時間' }, ticks: { maxTicksLimit: 20 } },
-                                    y: {
-                                        title: { display: true, text: target.label, rotation: 0, align: 'end', font: { weight: 'bold' } },
-                                        beginAtZero: false
-                                    }
-                                }
-                            }
+                            options: createOptions(target.label)
                         });
                     } else {
-                        // データ更新
                         singleChart.data.datasets[0].data = target.data;
                         singleChart.data.datasets[0].label = target.label;
                         singleChart.data.datasets[0].borderColor = target.color;
                         singleChart.data.datasets[0].backgroundColor = target.color;
                         singleChart.options.scales.y.title.text = target.label;
+                        singleChart.options.plugins.title.text = target.label;
                         singleChart.update();
                     }
+
+                    // ★追加: 単体表示の数値を更新
+                    const lastVal = target.data[target.data.length - 1];
+                    const valBox = document.getElementById('single-value-display');
+                    
+                    document.getElementById('single-val').innerText = lastVal;
+                    document.getElementById('single-unit').innerText = target.unit;
+                    
+                    // 色クラスをリセットして適用
+                    valBox.className = 'value-display ' + target.class;
                 }
             }
 
+            // 数値テキストを更新するだけの関数
+            function updateValueText(dataKey, elementId) {
+                const target = allData[dataKey];
+                const lastVal = target.data[target.data.length - 1];
+                const el = document.getElementById(elementId);
+                if(el) el.innerText = lastVal;
+            }
+
             // 小さいグラフを作成するヘルパー関数
-            function createMultiChart(canvasId, dataKey) {
+            function createMultiChart(canvasId, dataKey, valElementId) {
                 const ctx = document.getElementById(canvasId).getContext('2d');
                 const target = allData[dataKey];
                 
+                // グラフ作成
                 multiCharts[dataKey] = new Chart(ctx, {
                     type: 'line',
                     data: {
@@ -297,13 +347,14 @@ try {
                             data: target.data,
                             borderColor: target.color,
                             backgroundColor: target.color,
-                            tension: 0.1,
-                            pointRadius: 1, // 点をさらに小さく
-                            borderWidth: 1.5 // 線を少し細く
+                            tension: 0.1, pointRadius: 1, borderWidth: 1.5
                         }]
                     },
                     options: createOptions(target.label)
                 });
+
+                // ★数値の更新
+                updateValueText(dataKey, valElementId);
             }
 
             // 自動更新ロジック
