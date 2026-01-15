@@ -12,7 +12,6 @@ $pass = 'Gthree';
 $conn_string = "host=$host port=$port dbname=$dbname user=$user password=$pass";
 $conn = pg_connect($conn_string);
 
-// DB接続失敗時の処理
 if (!$conn) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['ajax'])) {
         header('Content-Type: application/json');
@@ -28,7 +27,6 @@ if (!$conn) {
 // -------------------- データ受信 (POST) --------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Content-Type: application/json");
-
     $input = file_get_contents('php://input');
     $data = json_decode($input, true);
 
@@ -44,11 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $query = "INSERT INTO sensor_logs (room_id, temperature, humidity, co2, illuminance, measured_at)
               VALUES ($1,$2,$3,$4,$5,NOW())";
     $result = pg_query_params($conn, $query, [
-        $data['room_id'],
-        $data['temperature'],
-        $data['humidity'],
-        $data['co2'],
-        $data['illuminance']
+        $data['room_id'], $data['temperature'], $data['humidity'], $data['co2'], $data['illuminance']
     ]);
 
     if($result){
@@ -57,23 +51,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         http_response_code(500);
         echo json_encode(["error"=>"DB insert failed","detail"=>pg_last_error($conn)]);
     }
-
     pg_close($conn);
     exit;
 }
 
-// 共通SQL
-$sql = "SELECT sensor_logs.*, COALESCE(rooms.name, sensor_logs.room_id::text) AS room_name
-        FROM sensor_logs
-        LEFT JOIN rooms ON sensor_logs.room_id = rooms.id
-        ORDER BY measured_at DESC LIMIT 10";
+// -------------------- クエリ構築関数 --------------------
+function buildQuery($conn, $roomId = null) {
+    $sql = "SELECT sensor_logs.*, COALESCE(rooms.name, sensor_logs.room_id::text) AS room_name
+            FROM sensor_logs
+            LEFT JOIN rooms ON sensor_logs.room_id = rooms.id
+            WHERE 1=1";
+    
+    if ($roomId !== null && $roomId !== '') {
+        $safeId = pg_escape_string($conn, $roomId);
+        $sql .= " AND sensor_logs.room_id = '$safeId'";
+    }
+    
+    $sql .= " ORDER BY measured_at DESC LIMIT 10";
+    return $sql;
+}
 
 // -------------------- 自動更新用データ返却 (AJAX) --------------------
-// ★ここが超重要です。HTMLを出力する前に、ajaxリクエストならJSONを返して終了(exit)します。
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json; charset=UTF-8');
     
+    $filterRoomId = isset($_GET['room_id']) ? $_GET['room_id'] : null;
+    
+    $sql = buildQuery($conn, $filterRoomId);
     $result = pg_query($conn, $sql);
+    
     $rows = [];
     if($result){
         while($row = pg_fetch_assoc($result)){
@@ -83,10 +89,11 @@ if (isset($_GET['ajax'])) {
     pg_close($conn);
     
     echo json_encode($rows);
-    exit; // ここでスクリプトを強制終了させ、下のHTMLが出ないようにします
+    exit;
 }
 
 // -------------------- 初回表示用データ取得 --------------------
+$sql = buildQuery($conn, null);
 $result = pg_query($conn, $sql);
 $rows = [];
 if($result){
@@ -103,40 +110,41 @@ pg_close($conn);
 <title>Sensor Monitor</title>
 <style>
     body { font-family: sans-serif; }
-    table { border-collapse: collapse; width: 80%; margin: auto; }
+    
+    /* 表は中央寄せに戻す */
+    table { 
+        border-collapse: collapse; 
+        width: 80%; 
+        margin: auto; 
+    }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
     th { background-color: #eee; }
-    /* 時計のデザイン */
-    #clock {
-        font-size: 0.6em;
-        margin-left: 20px;
-        font-weight: normal;
-        color: #555;
+    
+    #clock { font-size: 0.6em; margin-left: 20px; font-weight: normal; color: #555; }
+    
+    /* ▼▼▼ コントロールエリアのスタイル ▼▼▼ */
+    /* 幅を表と同じ80%にして中央に置きつつ、中身(text-align)を左寄せにする */
+    .controls { 
+        width: 80%; 
+        margin: 10px auto; 
+        text-align: left; 
     }
+    select { padding: 5px; font-size: 16px; }
 </style>
 <script>
-// 時計更新関数
 function updateClock() {
     const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const H = String(now.getHours()).padStart(2, '0');
-    const M = String(now.getMinutes()).padStart(2, '0');
-    const S = String(now.getSeconds()).padStart(2, '0');
-    
-    const timeString = `${y}/${m}/${d} ${H}:${M}:${S}`;
+    const timeString = now.toLocaleString('ja-JP');
     const clockEl = document.getElementById('clock');
-    if(clockEl) {
-        clockEl.innerText = timeString;
-    }
+    if(clockEl) clockEl.innerText = timeString;
 }
 
-// データ更新関数
 function reloadData(){
-    fetch('sensor.php?ajax=1')
+    const selectEl = document.getElementById('room_select');
+    const roomId = selectEl ? selectEl.value : '';
+
+    fetch('sensor.php?ajax=1&room_id=' + encodeURIComponent(roomId))
         .then(r => {
-            // ここでエラーが出る場合、PHP側でHTMLが混ざっている可能性があります
             if (!r.ok) throw new Error("Network response was not ok");
             return r.json();
         })
@@ -148,15 +156,20 @@ function reloadData(){
             
             let html = '<table>';
             html += '<tr><th>Time</th><th>Room</th><th>Temp (&deg;C)</th><th>Humidity (%)</th><th>CO2 (ppm)</th><th>Illuminance (lx)</th></tr>';
-            for(let r of rows){
-                html += '<tr>';
-                html += '<td>'+esc(r.measured_at)+'</td>';
-                html += '<td>'+esc(r.room_name)+'</td>';
-                html += '<td>'+esc(r.temperature)+'</td>';
-                html += '<td>'+esc(r.humidity)+'</td>';
-                html += '<td>'+esc(r.co2)+'</td>';
-                html += '<td>'+esc(r.illuminance)+'</td>';
-                html += '</tr>';
+            
+            if(rows.length === 0) {
+                html += '<tr><td colspan="6">No data found</td></tr>';
+            } else {
+                for(let r of rows){
+                    html += '<tr>';
+                    html += '<td>'+esc(r.measured_at)+'</td>';
+                    html += '<td>'+esc(r.room_name)+'</td>';
+                    html += '<td>'+esc(r.temperature)+'</td>';
+                    html += '<td>'+esc(r.humidity)+'</td>';
+                    html += '<td>'+esc(r.co2)+'</td>';
+                    html += '<td>'+esc(r.illuminance)+'</td>';
+                    html += '</tr>';
+                }
             }
             html += '</table>';
             document.getElementById('sensor_table').innerHTML = html;
@@ -164,11 +177,10 @@ function reloadData(){
         .catch(err => { console.error("Update failed:", err); });
 }
 
-// 読み込み完了後にタイマーを開始
 window.onload = function() {
     updateClock();
-    setInterval(updateClock, 1000); // 時計は1秒ごと
-    setInterval(reloadData, 5000);  // データは5秒ごと
+    setInterval(updateClock, 1000);
+    setInterval(reloadData, 5000);
 };
 </script>
 </head>
@@ -178,6 +190,16 @@ window.onload = function() {
     Sensor Monitor
     <span id="clock">Loading...</span>
 </h2>
+
+<div class="controls">
+    <label for="room_select">Room Filter: </label>
+    <select id="room_select" onchange="reloadData()">
+        <option value="">すべて (All)</option>
+        <option value="1">0-502</option>
+        <option value="2">0-504</option>
+        <option value="3">0-506</option>
+    </select>
+</div>
 
 <div id="sensor_table">
 <table>
