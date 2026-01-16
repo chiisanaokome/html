@@ -1,0 +1,29 @@
+sequenceDiagram
+    autonumber
+    %% 登場人物の定義
+    participant Arduino as Arduino (Ethernet)
+    participant WebServer as Linux Server<br>(Web/API/DB)
+    participant Browser as Webブラウザ<br>(自動更新)
+
+    Note over Arduino, WebServer: ■ LANケーブル接続 (HTTP通信)
+
+    %% 1. Arduinoによるデータ送信ループ
+    par [並行処理] データの記録
+        loop 測定・送信サイクル (例: センサー仕様に合わせる)
+            Arduino->>Arduino: 温湿度・光度・CO2測定
+            Arduino->>WebServer: HTTP POST /api/data.php<br>(値: 25℃, 60%, 800ppm...)
+            WebServer->>WebServer: データベースへINSERT
+            WebServer-->>Arduino: 200 OK (受信完了)
+        end
+
+    %% 2. ブラウザによる表示更新ループ
+    and データの表示
+        loop 10秒ごとに自動更新
+            Note right of Browser: HTML meta refresh<br>または JavaScript
+            Browser->>WebServer: HTTP GET /index.php
+            WebServer->>WebServer: DBから最新値をSELECT
+            WebServer-->>Browser: HTMLを返却<br>(最新データを表示)
+            
+            Browser->>Browser: 画面リロード
+        end
+    end

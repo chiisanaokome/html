@@ -1,0 +1,32 @@
+graph TD
+    %% ノードの定義
+    Start((開始))
+    End((待機/終了))
+    
+    subgraph Linux_Server [Linux Server / Raspberry Pi]
+        Process[制御スクリプト<br>Python/Shell]
+        DB[(Database<br>MySQL/SQLite)]
+        Log[ログ出力]
+        
+        Start --> Process
+        Process -->|1. 設定値・状態を取得| DB
+        DB -->|データを返す| Process
+        
+        Process --> Condition{値は閾値を超えている?}
+        
+        Condition -- No --> End
+        Condition -- Yes --> SendCmd[制御コマンド送信]
+        SendCmd --> Log
+    end
+
+    subgraph IoT_Device [センサー/デバイス]
+        Sensor[センサー/モーター]
+        
+        SendCmd -->|MQTT / HTTP / GPIO| Sensor
+        Sensor -->|動作完了通知| Process
+    end
+    
+    %% スタイル調整（見やすくするため）
+    style DB fill:#f9f,stroke:#333,stroke-width:2px
+    style Condition fill:#ff9,stroke:#333
+    style Sensor fill:#bbf,stroke:#333

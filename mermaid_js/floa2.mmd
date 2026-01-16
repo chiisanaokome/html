@@ -1,0 +1,7 @@
+flowchart TD
+    PageLoad[ページ読み込み完了] --> Wait[待機]
+    Wait --> CheckTime{10秒経過?}
+    
+    CheckTime -- No --> Wait
+    CheckTime -- Yes --> Reload[サーバーへ再リクエスト]
+    Reload --> Update[画面更新] --> Wait
