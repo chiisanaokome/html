@@ -16,7 +16,7 @@ $expiry = time() + 300;              // 5ï™
 file_put_contents("tokens.txt", "$token,$expiry\n", FILE_APPEND);
 
 // URLê∂ê¨
-$qr_url = "http://10.100.56.163/html/sensor.php?token=$token";
+$qr_url = "http://10.100.56.163/html/s.php?token=$token";
 
 // JSONï‘ãp
 echo json_encode([
