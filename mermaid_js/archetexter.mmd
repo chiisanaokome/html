@@ -22,7 +22,7 @@ graph LR
         direction TB
         Receiver[<b>データ受け渡し</b><br>PHP]
         Database[(<b>データベース</b><br>PostgreSQL)]
-        WebApp[<b>Webアプリ/表示</b><br>Nginx + HTML/PHP]
+        WebApp[<b>Webアプリ/表示</b><br>Apache2 + HTML/PHP]
     end
 
     User((教師者/管理者))
@@ -37,8 +37,10 @@ graph LR
     Receiver -->|PHP| Database
     Arduino -->|I2C| OLED
     
-    User -->|アクセス| WebApp
-    WebApp -->|要求| Database
+    User -->|要求/アクセス| WebApp
+    WebApp -->|応答| User
+
+    WebApp -->|SELECT| Database
     Database -->|応答| WebApp
 
     %% クラス適用
