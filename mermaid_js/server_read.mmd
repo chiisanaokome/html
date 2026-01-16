@@ -1,0 +1,32 @@
+flowchart TD
+    %% ノード定義
+    User((ユーザー)) --> Access[ページアクセス/更新]
+    Access --> ConnectDB[(DB接続)]
+    
+    subgraph Server_Side [サーバー側処理 PHP]
+        ConnectDB --> Select[最新データ取得<br>SELECT ... ORDER BY time DESC]
+        Select --> ReturnJSON[JSON形式でデータ返却]
+    end
+    
+    subgraph Client_Side [ブラウザ側処理 JS]
+        ReturnJSON --> Parse[JSONパース]
+        Parse --> LoopStart{全教室分ループ}
+        
+        LoopStart --> CheckLux{照度 > 100?}
+        CheckLux -- Yes --> StatusOn[ステータス: 使用中<br>カード赤色]
+        CheckLux -- No --> StatusOff[ステータス: 未使用<br>カード緑色]
+        
+        StatusOn --> CheckCO2{CO2 > 1000?}
+        StatusOff --> CheckCO2
+        
+        CheckCO2 -- Yes --> Alert[警告リストに追加]
+        CheckCO2 -- No --> UpdateUI[画面の数値を更新]
+        
+        Alert --> UpdateUI
+        UpdateUI --> LoopEnd{次の教室ある?}
+        
+        LoopEnd -- Yes --> LoopStart
+        LoopEnd -- No --> Timer[待機タイマー]
+    end
+    
+    Timer -->|5秒/10秒経過| Access

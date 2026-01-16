@@ -1,0 +1,21 @@
+graph TD
+    subgraph Linux_Server [Linux Server Internal]
+        direction TB
+        
+        %% 受信側
+        ReceiveApp[<b>受信プログラム</b><br>Python / PHP]
+
+        %% データベース
+        DB[<b>データベース</b><br>MySQL / MariaDB]
+        
+        %% 表示側
+        WebApp[<b>Webサーバー</b><br>Apache / Nginx + PHP]
+        
+        %% データの流れ
+        ReceiveApp -->|1. INSERT<br>書き込み| DB
+                DB -->|2.SELECT<br>読み出し| WebApp
+                WebApp -->|1.SELECT|DB
+    end
+
+    Arduino[Arduino] -->|POST送信| ReceiveApp
+    Browser[ブラウザ] -->|アクセス| WebApp

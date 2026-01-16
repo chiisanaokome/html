@@ -9,14 +9,14 @@ if($_SERVER['REQUEST_METHOD'] !== 'GET'){
 }
 
 // ワンタイムトークン生成
-$token  = bin2hex(random_bytes(1)); // 2文字
+$token  = bin2hex(random_bytes(2)); // 4文字
 $expiry = time() + 300;              // 5分
 
 // 保存
-file_put_contents("tokens.txt", "$token,$expiry\n", FILE_APPEND);
+file_put_contents("tokens.txt", "$token,$expiry\n", LOCK_EX);
 
 // URL生成
-$qr_url = "http://10.100.56.163/html/s.php?t=$token";
+$qr_url = "http://10.100.56.163/s.php?t=$token";
 
 // JSON返却
 echo json_encode([

@@ -1,0 +1,19 @@
+flowchart TD
+    Start((開始)) --> Receive[リクエスト受信<br>POSTデータ取得]
+    
+    Receive --> Check{データは正常?}
+    
+    Check -- No --> Error[エラーログ記録]
+    Error --> ResponseNG[400 Bad Request返却]
+    ResponseNG --> End((終了))
+    
+    Check -- Yes --> Prepare[SQL作成<br>INSERT INTO sensors...]
+    Prepare --> ExecDB[(DBへ保存実行)]
+    
+    ExecDB --> Success{保存成功?}
+    
+    Success -- No --> ErrorDB[DBエラーログ記録]
+    ErrorDB --> ResponseErr[500 Server Error返却]
+    
+    Success -- Yes --> ResponseOK[200 OK返却]
+    ResponseOK --> End
