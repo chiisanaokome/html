@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>学生用タブレット フローチャート</title>
+    <style>
+        body {
+            font-family: "Segoe UI", sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .flow {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .box, .decision {
+            background: #ffffff;
+            border: 2px solid #333;
+            padding: 12px 20px;
+            margin: 10px 0;
+            text-align: center;
+            min-width: 240px;
+        }
+        .start, .end {
+            border-radius: 30px;
+            background: #e3f2fd;
+            font-weight: bold;
+        }
+        .decision {
+            transform: rotate(45deg);
+            width: 180px;
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .decision span {
+            transform: rotate(-45deg);
+            display: block;
+        }
+        .arrow {
+            font-size: 20px;
+        }
+        .note {
+            margin-top: 30px;
+            background: #fffde7;
+            border-left: 6px solid #fbc02d;
+            padding: 12px;
+            max-width: 600px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>学生用タブレット<br>QR読み取り処理フローチャート</h1>
+
+<div class="flow">
+    <div class="box start">開始<br>（アプリ起動）</div>
+    <div class="arrow">↓</div>
+
+    <div class="box">カメラ権限を確認</div>
+    <div class="arrow">↓</div>
+
+    <div class="decision">
+        <span>権限は<br>許可されている？</span>
+    </div>
+
+    <div class="arrow">↓（Yes）</div>
+    <div class="box">QRコード読み取り開始</div>
+    <div class="arrow">↓</div>
+
+    <div class="decision">
+        <span>QRコードを<br>検出？</span>
+    </div>
+
+    <div class="arrow">↓（Yes）</div>
+    <div class="box">QR読み取り停止</div>
+    <div class="arrow">↓</div>
+
+    <div class="box">指定URLを生成</div>
+    <div class="arrow">↓</div>
+
+    <div class="box">ブラウザ起動<br>（index.phpを表示）</div>
+    <div class="arrow">↓</div>
+
+    <div class="box end">終了</div>
+</div>
+
+<div class="note">
+    <strong>補足：</strong><br>
+    本アプリは起動時にQRコード読み取り画面を表示し、<br>
+    QRコードを読み取ることで学生をWebシステムへ遷移させる。
+</div>
+
+</body>
+</html>
