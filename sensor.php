@@ -1,9 +1,8 @@
-
 <?php
 // sensor.php
-// -------------------- Ë®≠ÂÆö„ÉªDBÊé•Á∂ö --------------------
 header("Content-Type: text/html; charset=UTF-8");
 
+// -------------------- DBê⁄ë± --------------------
 $host = '127.0.0.1';
 $port = '5432';
 $dbname = 'group3';
@@ -14,7 +13,7 @@ $conn_string = "host=$host port=$port dbname=$dbname user=$user password=$pass";
 $conn = pg_connect($conn_string);
 
 if (!$conn) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['ajax'])) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Content-Type: application/json');
         http_response_code(500);
         echo json_encode(["error"=>"DB connection failed","detail"=>pg_last_error()]);
@@ -25,9 +24,10 @@ if (!$conn) {
     }
 }
 
-// -------------------- „Éá„Éº„ÇøÂèó‰ø° (POST) --------------------
+// -------------------- POSTéÛêM --------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Content-Type: application/json");
+
     $input = file_get_contents('php://input');
     $data = json_decode($input, true);
 
@@ -43,8 +43,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $query = "INSERT INTO sensor_logs (room_id, temperature, humidity, co2, illuminance, measured_at)
               VALUES ($1,$2,$3,$4,$5,NOW())";
     $result = pg_query_params($conn, $query, [
-        $data['room_id'], $data['temperature'], $data['humidity'], $data['co2'], $data['illuminance']
+        $data['room_id'],
+        $data['temperature'],
+        $data['humidity'],
+        $data['co2'],
+        $data['illuminance']
     ]);
+
+    file_put_contents("log.txt", print_r($data, true), FILE_APPEND);
 
     if($result){
         echo json_encode(["status"=>"ok"]);
@@ -52,172 +58,101 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         http_response_code(500);
         echo json_encode(["error"=>"DB insert failed","detail"=>pg_last_error($conn)]);
     }
+
     pg_close($conn);
     exit;
 }
 
-// -------------------- „ÇØ„Ç®„É™ÊßãÁØâÈñ¢Êï∞ --------------------
-function buildQuery($conn, $roomId = null) {
-    $sql = "SELECT sensor_logs.*, COALESCE(rooms.name, sensor_logs.room_id::text) AS room_name
-            FROM sensor_logs
-            LEFT JOIN rooms ON sensor_logs.room_id = rooms.id
-            WHERE 1=1";
-    
-    if ($roomId !== null && $roomId !== '') {
-        $safeId = pg_escape_string($conn, $roomId);
-        $sql .= " AND sensor_logs.room_id = '$safeId'";
-    }
-    
-    $sql .= " ORDER BY measured_at DESC LIMIT 10";
-    return $sql;
-}
+// -------------------- GETï\é¶ --------------------
+// ç≈êV10åèÇéÊìæÇµÇƒÉeÅ[ÉuÉãï\é¶
+$query = "SELECT * FROM sensor_logs ORDER BY measured_at DESC LIMIT 10";
+$result = pg_query($conn, $query);
 
-// -------------------- Ëá™ÂãïÊõ¥Êñ∞Áî®„Éá„Éº„ÇøËøîÂç¥ (AJAX) --------------------
-if (isset($_GET['ajax'])) {
-    header('Content-Type: application/json; charset=UTF-8');
-    
-    $filterRoomId = isset($_GET['room_id']) ? $_GET['room_id'] : null;
-    
-    $sql = buildQuery($conn, $filterRoomId);
-    $result = pg_query($conn, $sql);
-    
-    $rows = [];
-    if($result){
-        while($row = pg_fetch_assoc($result)){
-            $rows[] = $row;
-        }
-    }
-    pg_close($conn);
-    
-    echo json_encode($rows);
-    exit;
-}
-
-// -------------------- ÂàùÂõûË°®Á§∫Áî®„Éá„Éº„ÇøÂèñÂæó --------------------
-$sql = buildQuery($conn, null);
-$result = pg_query($conn, $sql);
 $rows = [];
 if($result){
     while($row = pg_fetch_assoc($result)){
         $rows[] = $row;
     }
 }
+
 pg_close($conn);
 ?>
+
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<a href="debug.html">„Éá„Éê„ÉÉ„Ç∞ÁîªÈù¢„Å∏</a> <br>
 <title>Sensor Monitor</title>
 <style>
     body { font-family: sans-serif; }
-    
-    /* Ë°®„ÅØ‰∏≠Â§ÆÂØÑ„Åõ„Å´Êàª„Åô */
-    table { 
-        border-collapse: collapse; 
-        width: 80%; 
-        margin: auto; 
-    }
+    table { border-collapse: collapse; width: 80%; margin: auto; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
     th { background-color: #eee; }
-    
-    #clock { font-size: 0.6em; margin-left: 20px; font-weight: normal; color: #555; }
-    
-    /* ‚ñº‚ñº‚ñº „Ç≥„É≥„Éà„É≠„Éº„É´„Ç®„É™„Ç¢„ÅÆ„Çπ„Çø„Ç§„É´ ‚ñº‚ñº‚ñº */
-    /* ÂπÖ„ÇíË°®„Å®Âêå„Åò80%„Å´„Åó„Å¶‰∏≠Â§Æ„Å´ÁΩÆ„Åç„Å§„Å§„ÄÅ‰∏≠Ë∫´(text-align)„ÇíÂ∑¶ÂØÑ„Åõ„Å´„Åô„Çã */
-    .controls { 
-        width: 80%; 
-        margin: 10px auto; 
-        text-align: left; 
-    }
-    select { padding: 5px; font-size: 16px; }
 </style>
 <script>
-function updateClock() {
-    const now = new Date();
-    const timeString = now.toLocaleString('ja-JP');
-    const clockEl = document.getElementById('clock');
-    if(clockEl) clockEl.innerText = timeString;
-}
-
 function reloadData(){
-    const selectEl = document.getElementById('room_select');
-    const roomId = selectEl ? selectEl.value : '';
-
-    fetch('sensor.php?ajax=1&room_id=' + encodeURIComponent(roomId))
-        .then(r => {
-            if (!r.ok) throw new Error("Network response was not ok");
-            return r.json();
-        })
-        .then(rows => {
-            function esc(s){ 
-                if (s === null || s === undefined) return '';
-                return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); 
-            }
-            
-            let html = '<table>';
-            html += '<tr><th>Time</th><th>Room</th><th>Temp (&deg;C)</th><th>Humidity (%)</th><th>CO2 (ppm)</th><th>Illuminance (lx)</th></tr>';
-            
-            if(rows.length === 0) {
-                html += '<tr><td colspan="6">No data found</td></tr>';
-            } else {
-                for(let r of rows){
-                    html += '<tr>';
-                    html += '<td>'+esc(r.measured_at)+'</td>';
-                    html += '<td>'+esc(r.room_name)+'</td>';
-                    html += '<td>'+esc(r.temperature)+'</td>';
-                    html += '<td>'+esc(r.humidity)+'</td>';
-                    html += '<td>'+esc(r.co2)+'</td>';
-                    html += '<td>'+esc(r.illuminance)+'</td>';
-                    html += '</tr>';
-                }
-            }
-            html += '</table>';
-            document.getElementById('sensor_table').innerHTML = html;
-        })
-        .catch(err => { console.error("Update failed:", err); });
+    fetch('sensor.php?ajax=1')
+        .then(r=>r.text())
+        .then(html=>{document.getElementById('sensor_table').innerHTML=html;});
 }
-
-window.onload = function() {
-    updateClock();
-    setInterval(updateClock, 1000);
-    setInterval(reloadData, 5000);
-};
+setInterval(reloadData, 5000);
 </script>
 </head>
 <body>
-
-<h2 style="text-align:center;">
-    Sensor Monitor
-    <span id="clock">Loading...</span>
-</h2>
-
-<div class="controls">
-    <label for="room_select">Room Selecter: </label>
-    <select id="room_select" onchange="reloadData()">
-        <option value="">„Åô„Åπ„Å¶</option>
-        <option value="1">0-502</option>
-        <option value="2">0-504</option>
-        <option value="3">0-506</option>
-    </select>
-</div>
-
+<h2 style="text-align:center;">Sensor Monitor</h2>
 <div id="sensor_table">
-<table>
-<tr><th>Time</th><th>Room</th><th>Temp (&deg;C)</th><th>Humidity (%)</th><th>CO2 (ppm)</th><th>Illuminance (lx)</th></tr>
-<?php foreach($rows as $r): ?>
-<tr>
-    <td><?php echo htmlspecialchars($r['measured_at']); ?></td>
-    <td><?php echo htmlspecialchars($r['room_name']); ?></td>
-    <td><?php echo htmlspecialchars($r['temperature']); ?></td>
-    <td><?php echo htmlspecialchars($r['humidity']); ?></td>
-    <td><?php echo htmlspecialchars($r['co2']); ?></td>
-    <td><?php echo htmlspecialchars($r['illuminance']); ?></td>
-</tr>
-<?php endforeach; ?>
-</table>
-</div>
+<?php
 
+// urlëóêMÅiÉèÉìÉ^ÉCÉÄÅj
+if (isset($_GET['get_qr'])) {
+    header("Content-Type: application/json");
+
+    // 1. ÉèÉìÉ^ÉCÉÄÉgÅ[ÉNÉìê∂ê¨
+    $token = bin2hex(random_bytes(4)); // 8ï∂éö
+    $expiry = time() + 300; // 5ï™óLå¯
+
+    // 2. ÉtÉ@ÉCÉãÇ…ï€ë∂
+    file_put_contents("tokens.txt", "$token,$expiry\n", FILE_APPEND);
+
+    // 3. URLê∂ê¨
+    $qr_url = "http://10.100.56.163/html/sensor.php?token=$token";
+
+    echo json_encode(["qr_url" => $qr_url]);
+    exit;
+}
+
+
+if (isset($_GET['ajax'])) {
+    echo "<table>";
+    echo "<tr><th>Time</th><th>Room</th><th>Temp (Åé)</th><th>Humidity (%)</th><th>CO2 (ppm)</th><th>Illuminance (lx)</th></tr>";
+    foreach($rows as $r){
+        echo "<tr>";
+        echo "<td>".$r['measured_at']."</td>";
+        echo "<td>".$r['room_id']."</td>";
+        echo "<td>".$r['temperature']."</td>";
+        echo "<td>".$r['humidity']."</td>";
+        echo "<td>".$r['co2']."</td>";
+        echo "<td>".$r['illuminance']."</td>";
+        echo "</tr>";
+    }
+    echo "</table>";
+    exit;
+}
+
+echo "<table>";
+echo "<tr><th>Time</th><th>Room</th><th>Temp (Åé)</th><th>Humidity (%)</th><th>CO2 (ppm)</th><th>Illuminance (lx)</th></tr>";
+foreach($rows as $r){
+    echo "<tr>";
+    echo "<td>".$r['measured_at']."</td>";
+    echo "<td>".$r['room_id']."</td>";
+    echo "<td>".$r['temperature']."</td>";
+    echo "<td>".$r['humidity']."</td>";
+    echo "<td>".$r['co2']."</td>";
+    echo "<td>".$r['illuminance']."</td>";
+    echo "</tr>";
+}
+echo "</table>";
+?>
+</div>
 </body>
 </html>
