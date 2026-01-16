@@ -194,9 +194,9 @@ window.onload = function() {
 </h2>
 
 <div class="controls">
-    <label for="room_select">Room Filter: </label>
+    <label for="room_select">Room Selecter: </label>
     <select id="room_select" onchange="reloadData()">
-        <option value="">すべて (All)</option>
+        <option value="">すべて</option>
         <option value="1">0-502</option>
         <option value="2">0-504</option>
         <option value="3">0-506</option>
