@@ -1,28 +1,28 @@
 graph LR
     %% スタイルの定義
-    classDef hardware fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef server fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
-    classDef db fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+    %% classDef hardware fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    %% classDef server fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px;
+    %% classDef db fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
 
     subgraph Sensors [センサー群]
-        DHT[温湿度センサー<br>DHT11/22]
-        Photo[光センサー<br>CdSセル]
-        MHZ[CO2センサー<br>MH-Z19等]
+        DHT[温湿度センサー]
+        Photo[光センサー]
+        MHZ[CO2センサー]
     end
 
     subgraph Output_Status[液晶]
-        OLED[液晶ディスプレイ<br>128x64 OLED]
+        OLED[OLED]
     end
 
     subgraph Arduino_Unit [Arduino側]
-        Arduino[Arduino Uno/Nano]
+        Arduino[Arduino Uno R4]
     end
 
     subgraph Linux_Server [Linux Server]
         direction TB
-        Receiver[<b>データ受信スクリプト</b><br>Python / Node.js]
-        Database[(<b>データベース</b><br>MySQL / MariaDB)]
-        WebApp[<b>Webアプリ/表示</b><br>Nginx + PHP/Python]
+        Receiver[<b>データ受け渡し</b><br>PHP]
+        Database[(<b>データベース</b><br>PostgreSQL)]
+        WebApp[<b>Webアプリ/表示</b><br>Nginx + HTML/PHP]
     end
 
     User((教師者/管理者))
@@ -30,16 +30,16 @@ graph LR
     %% 接続関係
     DHT -->|Digital| Arduino
     Photo -->|Analog| Arduino
-    MHZ -->|UART/PWM| Arduino
+    MHZ -->|Analog| Arduino
     
 
-    Arduino ==>|USB Serial / HTTP| Receiver
-    Receiver -->|INSERT| Database
+    Arduino ==>|HTTP| Receiver
+    Receiver -->|PHP| Database
     Arduino -->|I2C| OLED
     
     User -->|アクセス| WebApp
-    WebApp -->|SELECT| Database
-    Database -->|データ返却| WebApp
+    WebApp -->|要求| Database
+    Database -->|応答| WebApp
 
     %% クラス適用
     class DHT,Photo,MHZ,Arduino hardware;
