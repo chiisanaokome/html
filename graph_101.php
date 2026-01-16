@@ -133,6 +133,7 @@ try {
 </head>
 <body>
     <div id="progress-bar"></div>
+    <a href="debug.html">!!! Let's go debug page !!!</a>
 
     <div class="controls">
         <form action="" method="GET" style="display: inline;">
