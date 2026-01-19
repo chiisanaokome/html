@@ -1,0 +1,46 @@
+graph TD
+    %% スタイル定義
+    classDef default fill:#fff,stroke:#333,stroke-width:1px;
+    classDef cluster fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    classDef db fill:#e1f5fe,stroke:#333,stroke-width:1px;
+    classDef user fill:#fff9c4,stroke:#333,stroke-width:1px;
+
+    subgraph Sensors ["センサー類"]
+        direction TB
+        Temp["温湿度センサー"]
+        Light["光センサー"]
+        CO2["CO2センサー"]
+    end
+
+    subgraph ArduinoNode ["Arduino側"]
+        Uno["Arduino Uno R4"]
+    end
+    
+    OLED["OLED"]
+
+    subgraph Server ["Linux Server"]
+        direction TB
+        PHP_In["データ受け渡し<br>PHP"]
+        DB[("データベース<br>PostgreSQL")]:::db
+        WebApp["Webアプリ表示<br>Apache2 + HTML/PHP"]
+    end
+
+    Users(("教師PC/<br>学生タブレット")):::user
+
+    %% 接続関係
+    Temp -- Digital out --> Uno
+    Light -- Analog out --> Uno
+    CO2 -- Analog out --> Uno
+    
+    Uno -- I2C --> OLED
+    Uno -- HTTP --> PHP_In
+    
+    PHP_In -- PHP --> DB
+    DB -- SELECT --> WebApp
+    WebApp -- 応答 --> DB
+    
+    WebApp -- 応答 --> Users
+    Users -- 要求/アクセス --> WebApp
+
+    %% クラス適用
+    class Sensors,ArduinoNode,Server cluster;
