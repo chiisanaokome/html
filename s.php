@@ -27,21 +27,23 @@ if (!$conn) {
 // -------------------- トークン認証 --------------------
 $TOKEN_FILE = __DIR__ . "/tokens.txt";
 
-if (!isset($_GET['t'])) {
-    http_response_code(403);
-    exit("token required");
-}
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+	if (!isset($_GET['t'])) {
+	    http_response_code(403);
+	    exit("token required");
+	}
 
-list($savedToken, $expiry) = explode(",", trim(file_get_contents($TOKEN_FILE)));
+	list($savedToken, $expiry) = explode(",", trim(file_get_contents($TOKEN_FILE)));
 
-if ($_GET['t'] !== $savedToken) {
-    http_response_code(403);
-    exit("invalid token");
-}
+	if ($_GET['t'] !== $savedToken) {
+	    http_response_code(403);
+	    exit("invalid token");
+	}
 
-if ($expiry < time()) {
-    http_response_code(403);
-    exit("token expired");
+	if ($expiry < time()) {
+	    http_response_code(403);
+	    exit("token expired");
+	}
 }
 
 
