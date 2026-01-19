@@ -1,6 +1,6 @@
 <?php
 // sensor.php
-// -------------------- �ݒ�EDB�ڑ� --------------------
+// -------------------- 設定・DB接続 --------------------
 header("Content-Type: text/html; charset=UTF-8");
 
 $host = '127.0.0.1';
@@ -24,26 +24,30 @@ if (!$conn) {
     }
 }
 
-// -------------------- �g�[�N���F�� --------------------
+// -------------------- トークン認証 --------------------
 $TOKEN_FILE = __DIR__ . "/tokens.txt";
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-	if (!isset($_GET['t'])) {
-	    http_response_code(403);
-	    exit("token required");
-	}
+$needToken =
+    ($_SERVER['REQUEST_METHOD'] === 'GET') &&
+    (!isset($_GET['ajax']));   // �� ajax�͏��O
 
-	list($savedToken, $expiry) = explode(",", trim(file_get_contents($TOKEN_FILE)));
+if ($needToken) {
+    if (!isset($_GET['t'])) {
+        http_response_code(403);
+        exit("token required");
+    }
 
-	if ($_GET['t'] !== $savedToken) {
-	    http_response_code(403);
-	    exit("invalid token");
-	}
+    list($savedToken, $expiry) = explode(",", trim(file_get_contents($TOKEN_FILE)));
 
-	if ($expiry < time()) {
-	    http_response_code(403);
-	    exit("token expired");
-	}
+    if ($_GET['t'] !== $savedToken) {
+        http_response_code(403);
+        exit("invalid token");
+    }
+
+    if ($expiry < time()) {
+        http_response_code(403);
+        exit("token expired");
+    }
 }
 
 
@@ -218,7 +222,7 @@ window.onload = function() {
 <div class="controls">
     <label for="room_select">Room Selecter: </label>
     <select id="room_select" onchange="reloadData()">
-        <option value="">���ׂ�</option>
+        <option value="">すべて</option>
         <option value="1">0-502</option>
         <option value="2">0-504</option>
         <option value="3">0-506</option>
