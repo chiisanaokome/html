@@ -1,6 +1,6 @@
 <?php
 // sensor.php
-// -------------------- Ý’èEDBÚ‘± --------------------
+// -------------------- ï¿½Ý’ï¿½EDBï¿½Ú‘ï¿½ --------------------
 header("Content-Type: text/html; charset=UTF-8");
 
 $host = '127.0.0.1';
@@ -24,7 +24,7 @@ if (!$conn) {
     }
 }
 
-// -------------------- ƒg[ƒNƒ“”FØ --------------------
+// -------------------- ï¿½gï¿½[ï¿½Nï¿½ï¿½ï¿½Fï¿½ï¿½ --------------------
 $TOKEN_FILE = __DIR__ . "/tokens.txt";
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 
-// -------------------- ƒf[ƒ^ŽóM (POST) --------------------
+// -------------------- ï¿½fï¿½[ï¿½^ï¿½ï¿½M (POST) --------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Content-Type: application/json");
     $input = file_get_contents('php://input');
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// -------------------- ƒNƒGƒŠ\’zŠÖ” --------------------
+// -------------------- ï¿½Nï¿½Gï¿½ï¿½ï¿½\ï¿½zï¿½Öï¿½ --------------------
 function buildQuery($conn, $roomId = null) {
     $sql = "SELECT sensor_logs.*, COALESCE(rooms.name, sensor_logs.room_id::text) AS room_name
             FROM sensor_logs
@@ -94,7 +94,7 @@ function buildQuery($conn, $roomId = null) {
     return $sql;
 }
 
-// -------------------- Ž©“®XV—pƒf[ƒ^•Ô‹p (AJAX) --------------------
+// -------------------- ï¿½ï¿½ï¿½ï¿½ï¿½Xï¿½Vï¿½pï¿½fï¿½[ï¿½^ï¿½Ô‹p (AJAX) --------------------
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json; charset=UTF-8');
     
@@ -115,7 +115,7 @@ if (isset($_GET['ajax'])) {
     exit;
 }
 
-// -------------------- ‰‰ñ•\Ž¦—pƒf[ƒ^Žæ“¾ --------------------
+// -------------------- ï¿½ï¿½ï¿½ï¿½\ï¿½ï¿½ï¿½pï¿½fï¿½[ï¿½^ï¿½æ“¾ --------------------
 $sql = buildQuery($conn, null);
 $result = pg_query($conn, $sql);
 $rows = [];
@@ -130,12 +130,12 @@ pg_close($conn);
 <html>
 <head>
 <meta charset="UTF-8">
-<a href="debug.html">ƒfƒoƒbƒO‰æ–Ê‚Ö</a> <br>
+<a href="debug.html">debugç”»é¢ã¸</a> <br>
 <title>Sensor Monitor</title>
 <style>
     body { font-family: sans-serif; }
     
-    /* •\‚Í’†‰›Šñ‚¹‚É–ß‚· */
+    /* ï¿½\ï¿½Í’ï¿½ï¿½ï¿½ï¿½ñ‚¹‚É–ß‚ï¿½ */
     table { 
         border-collapse: collapse; 
         width: 80%; 
@@ -146,8 +146,8 @@ pg_close($conn);
     
     #clock { font-size: 0.6em; margin-left: 20px; font-weight: normal; color: #555; }
     
-    /* ¥¥¥ ƒRƒ“ƒgƒ[ƒ‹ƒGƒŠƒA‚ÌƒXƒ^ƒCƒ‹ ¥¥¥ */
-    /* •‚ð•\‚Æ“¯‚¶80%‚É‚µ‚Ä’†‰›‚É’u‚«‚Â‚ÂA’†g(text-align)‚ð¶Šñ‚¹‚É‚·‚é */
+    /* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Rï¿½ï¿½ï¿½gï¿½ï¿½ï¿½[ï¿½ï¿½ï¿½Gï¿½ï¿½ï¿½Aï¿½ÌƒXï¿½^ï¿½Cï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+    /* ï¿½ï¿½ï¿½ï¿½\ï¿½Æ“ï¿½ï¿½ï¿½80%ï¿½É‚ï¿½ï¿½Ä’ï¿½ï¿½ï¿½ï¿½É’uï¿½ï¿½ï¿½Â‚ÂAï¿½ï¿½ï¿½g(text-align)ï¿½ï¿½ï¿½ï¿½ï¿½ñ‚¹‚É‚ï¿½ï¿½ï¿½ */
     .controls { 
         width: 80%; 
         margin: 10px auto; 
@@ -218,7 +218,7 @@ window.onload = function() {
 <div class="controls">
     <label for="room_select">Room Selecter: </label>
     <select id="room_select" onchange="reloadData()">
-        <option value="">‚·‚×‚Ä</option>
+        <option value="">ï¿½ï¿½ï¿½×‚ï¿½</option>
         <option value="1">0-502</option>
         <option value="2">0-504</option>
         <option value="3">0-506</option>
