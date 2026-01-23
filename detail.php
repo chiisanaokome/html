@@ -59,8 +59,8 @@
         <div class="header-left">
             教室環境モニター
             <select id="room_select" onchange="updateAll()" style="font-size: 1em; padding: 5px;">
-                <option value="1">0-502</option>
-                <option value="2" selected>0-504</option>
+                <option value="1" selected>0-502</option>
+                <option value="2">0-504</option>
                 <option value="3">0-506</option>
             </select>
             <span id="light_badge" class="badge">点灯中</span>
