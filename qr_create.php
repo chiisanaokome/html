@@ -42,7 +42,8 @@ if ($token === null) {
 }
 
 // URLê∂ê¨
-$qr_url = "http://10.100.56.163/s.php?t=$token";
+//$qr_url = "http://10.100.56.163/s.php?t=$token";
+$qr_url = "t=$token";
 
 // JSONï‘ãp
 echo json_encode([

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ER図（詳細設計：テーブル関連詳細）</title>
+
+    <!-- Mermaid -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: "default",
+            er: {
+                useMaxWidth: true
+            }
+        });
+    </script>
+
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+            background-color: #f2f4f8;
+            margin: 0;
+            padding: 24px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .mermaid {
+            background: #ffffff;
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+        .note {
+            margin-top: 24px;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>ER図（詳細設計：テーブル間関係）</h1>
+
+<div class="mermaid">
+erDiagram
+
+    users ||--o{ attendance_logs : "FK: user_id"
+    rooms ||--o{ attendance_logs : "FK: room_id"
+    rooms ||--o{ sensor_logs : "FK: room_id"
+
+    users {
+        int id PK "利用者ID"
+        string user_code "学籍番号/社員番号"
+        string name "氏名"
+        string role "student/teacher/admin"
+    }
+
+    rooms {
+        int id PK "教室ID"
+        string name "教室名"
+    }
+
+    attendance_logs {
+        int id PK "出欠ログID"
+        int user_id FK "users.id"
+        int room_id FK "rooms.id"
+        string action "enter/exit"
+        int period "授業時限"
+        datetime logged_at "記録日時"
+    }
+
+    sensor_logs {
+        int room_id PK, FK "rooms.id"
+        datetime measured_at PK "測定日時"
+        decimal temperature "温度(℃)"
+        decimal humidity "湿度(%)"
+        int co2 "CO2(ppm)"
+        int illuminance "照度(lx)"
+    }
+</div>
+
+<div class="note">
+    <h2>ER図の読み取りポイント</h2>
+    <ul>
+        <li>
+            <strong>users → attendance_logs</strong><br>
+            利用者1人に対して複数の出欠席ログが紐づく（1対多）
+        </li>
+        <li>
+            <strong>rooms → attendance_logs</strong><br>
+            教室1つに対して複数の入退室記録が発生する（1対多）
+        </li>
+        <li>
+            <strong>rooms → sensor_logs</strong><br>
+            教室単位で環境データを時系列管理（複合主キー）
+        </li>
+        <li>
+            外部キーは ER図内で明示的に参照先テーブル・カラムを表記
+        </li>
+    </ul>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,46 @@
+flowchart TD
+    Start([囘始]) --> CheckMethod{"メソッドは<br/>GETか？"}
+
+    %% --- エラー処理 ---
+    CheckMethod -- "No" --> Set405["405 エラー設定"]
+    
+    %% エラーJSON出力
+    Set405 --> ErrorJson["エラー出力"]
+    ErrorJson --> End([終了])
+
+    %% --- 正常処理開始 ---
+    CheckMethod -- "Yes" --> Init["変数初期化"]
+    Init --> CheckFile{"tokens.txtは<br/>存在するか？"}
+
+    %% --- 既存ファイル確認 ---
+    CheckFile -- "Yes" --> ReadFile["ファイルを読み込み<br/>中身を取得"]
+    ReadFile --> CheckContent{"中身は<br/>空ではないか？"}
+    CheckContent -- "Yes" --> ParseData["データを分解"]
+    ParseData --> CheckExpiry{"有効期限内か？"}
+
+    %% --- 既存トークン採用 ---
+    CheckExpiry -- "Yes" --> UseSaved["既存データを変数にセット"]
+    UseSaved --> CheckTokenNull
+
+    %% --- 新規作成判定への合流 ---
+    CheckFile -- "No" --> CheckTokenNull
+    CheckContent -- "No" --> CheckTokenNull
+    CheckExpiry -- "No" --> CheckTokenNull
+
+    %% --- トークン生成分岐 ---
+    %% CheckTokenNull{"$tokenは<br/>未設定(null)か？"}
+    CheckTokenNull{"$tokenは未設定(null)<br>又は有効期限切れか？"}
+
+    %% 新規生成ルート
+    CheckTokenNull -- "Yes<br/>(新規作成)" --> GenToken["新規トークン生成"]
+    GenToken --> SetExp["期限を現在時刻+300秒に設定"]
+    SetExp --> SaveFile["ファイルに保存"]
+    SaveFile --> MakeURL
+
+    %% 既存利用ルート
+    CheckTokenNull -- "No<br/>(再利用)" --> MakeURL
+
+    %% --- 最終出力 ---
+    MakeURL["URL生成"]
+    MakeURL --> OutJSON["JSON出力"]
+    OutJSON --> End
