@@ -47,6 +47,7 @@ $TOKEN_FILE = __DIR__ . "/tokens.txt"; // トークンが保存されている�
 // 認証が必要かどうかの判定
 // 条件: 「GETリクエスト」かつ「AJAX通信ではない(=画面の初期表示)」場合
 $needToken = ($_SERVER['REQUEST_METHOD'] === 'GET') && (!isset($_GET['ajax']));
+// トークン認証が必要な場合の処理
 
 if ($needToken) {
     // URLパラメータにトークン(?t=xxx)がない場合は拒否

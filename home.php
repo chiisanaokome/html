@@ -74,7 +74,7 @@
 
     <div class="footer-btns">
         <a href="detail.php" class="btn btn-gray"><i class="fas fa-chart-line"></i> 環境管理画面へ</a>
-        <a href="#" class="btn btn-blue"><i class="fas fa-user-check"></i> 出席管理画面へ</a>
+        <a href="attendance.php" class="btn btn-blue"><i class="fas fa-user-check"></i> 出席管理画面へ</a>
     </div>
 </div>
 
