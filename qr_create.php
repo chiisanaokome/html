@@ -43,11 +43,11 @@ if ($token === null) {
 
 // URL¶¬
 //$qr_url = "http://10.100.56.163/s.php?t=$token";
-$qr_url = "t=$token";
+$qr_data = "t=$token";
 
 // JSON•Ô‹p
 echo json_encode([
     "status"  => "ok",
-    "qr_url"  => $qr_url,
+    "qr_data"  => $qr_data,
     "expires" => $expiry
 ]);
