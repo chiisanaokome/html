@@ -154,8 +154,8 @@ try {
 
         <label for="sensorSelect">項目:</label>
         <select id="sensorSelect" onchange="changeSensor()">
+            <option value="all" >すべて</option>
             <option value="temperature">温度</option>
-            <option value="all">すべて</option>
             <option value="humidity">湿度</option>
             <option value="co2">二酸化炭素</option>
             <option value="illuminance">光度</option>

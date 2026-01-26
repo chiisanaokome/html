@@ -1,0 +1,52 @@
+flowchart TD
+    Start(["開始"]) --> DBConnect["DB接続 (pg_connect)"]
+    
+    %% DB接続判定
+    DBConnect --> IsDBConnected{"接続成功?"}
+    IsDBConnected -- "No" --> CheckErrType{"POST または Ajax?"}
+    CheckErrType -- "Yes" --> Res500["JSON 500 Error"] --> End(["終了"])
+    CheckErrType -- "No" --> ResText["Text Error Message"] --> End
+    
+    IsDBConnected -- "Yes" --> CheckAuthLogic
+
+    %% トークン認証ロジック
+    subgraph Auth ["トークン認証"]
+        CheckAuthLogic{"GET かつ !Ajax ?"}
+        CheckAuthLogic -- "Yes" --> CheckTokenParam{"?t=xxx あり?"}
+        CheckTokenParam -- "No" --> Res403_1["403 Token Required"] --> End
+        CheckTokenParam -- "Yes" --> ReadTokenFile["トークンファイル読み込み"]
+        ReadTokenFile --> VerifyToken{"一致 & 有効期限内?"}
+        VerifyToken -- "No" --> Res403_2["403 Invalid/Expired"] --> End
+        VerifyToken -- "Yes" --> NextStep
+    end
+    
+    CheckAuthLogic -- "No (POST or Ajax)" --> NextStep["リクエスト種別判定へ"]
+
+    %% リクエスト分岐
+    NextStep --> IsPost{"Method == POST?"}
+
+    %% POST処理 (データ登録)
+    IsPost -- "Yes" --> DecodeJSON["JSON入力デコード"]
+    DecodeJSON --> CheckParams{"必須項目あり?"}
+    
+    CheckParams -- "No" --> Res400["400 Error JSON"] --> End
+    CheckParams -- "Yes" --> InsertDB["INSERT sensor_logs"]
+    
+    InsertDB --> IsInsertSuccess{"INSERT成功?"}
+    IsInsertSuccess -- "Yes" --> ResSuccess["JSON OK"] --> End
+    IsInsertSuccess -- "No" --> Res500Ins["500 Error JSON"] --> End
+
+    %% AJAX処理 (データ取得API)
+    IsPost -- "No" --> IsAjax{"GET param 'ajax' あり?"}
+    
+    IsAjax -- "Yes" --> GetRoomID["room_id取得"]
+    GetRoomID --> BuildQueryAjax["クエリ作成<br/>WHERE room_id"]
+    BuildQueryAjax --> ExecQueryAjax["DB検索 SELECT"]
+    ExecQueryAjax --> FetchRowsAjax["結果を配列化"]
+    FetchRowsAjax --> ResJSON["JSONデータ返却"] --> End
+
+    %% HTML描画処理 (初期表示)
+    IsAjax -- "No" --> BuildQueryHTML["クエリ作成<br/>最新10件"]
+    BuildQueryHTML --> ExecQueryHTML["DB検索 SELECT"]
+    ExecQueryHTML --> FetchRowsHTML["結果を配列化"]
+    FetchRowsHTML --> RenderHTML["HTMLページ描画<br/>(Table, JS含む)"] --> End
