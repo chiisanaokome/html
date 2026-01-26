@@ -3,7 +3,7 @@ flowchart TD
     
     %% DB接続判定
     DBConnect --> IsDBConnected{"接続成功?"}
-    IsDBConnected -- "No" --> CheckErrType{"POST または Ajax?"}
+    IsDBConnected -- "No" --> CheckErrType{"リクエストはPOST または Ajaxか?"}
     CheckErrType -- "Yes" --> Res500["JSON 500 Error"] --> End(["終了"])
     CheckErrType -- "No" --> ResText["Text Error Message"] --> End
     
@@ -11,11 +11,11 @@ flowchart TD
 
     %% トークン認証ロジック
     subgraph Auth ["トークン認証"]
-        CheckAuthLogic{"GET かつ !Ajax ?"}
-        CheckAuthLogic -- "Yes" --> CheckTokenParam{"?t=xxx あり?"}
+        CheckAuthLogic{"GET かつ Ajaxではない ?"}
+        CheckAuthLogic -- "Yes" --> CheckTokenParam{"URLにトークンがある?"}
         CheckTokenParam -- "No" --> Res403_1["403 Token Required"] --> End
         CheckTokenParam -- "Yes" --> ReadTokenFile["トークンファイル読み込み"]
-        ReadTokenFile --> VerifyToken{"一致 & 有効期限内?"}
+        ReadTokenFile --> VerifyToken{"トークンが 一致 かつ<br>有効期限内 か?"}
         VerifyToken -- "No" --> Res403_2["403 Invalid/Expired"] --> End
         VerifyToken -- "Yes" --> NextStep
     end
@@ -23,11 +23,13 @@ flowchart TD
     CheckAuthLogic -- "No (POST or Ajax)" --> NextStep["リクエスト種別判定へ"]
 
     %% リクエスト分岐
-    NextStep --> IsPost{"Method == POST?"}
+    %%NextStep --> IsPost{"Method == POST?"}
+    NextStep --> IsPost{"リクエストはPOSTか?"}
 
     %% POST処理 (データ登録)
     IsPost -- "Yes" --> DecodeJSON["JSON入力デコード"]
-    DecodeJSON --> CheckParams{"必須項目あり?"}
+    %% DecodeJSON --> CheckParams{"必須項目あり?"}
+    DecodeJSON --> CheckParams{"データが揃っているか?"}
     
     CheckParams -- "No" --> Res400["400 Error JSON"] --> End
     CheckParams -- "Yes" --> InsertDB["INSERT sensor_logs"]
@@ -37,13 +39,14 @@ flowchart TD
     IsInsertSuccess -- "No" --> Res500Ins["500 Error JSON"] --> End
 
     %% AJAX処理 (データ取得API)
-    IsPost -- "No" --> IsAjax{"GET param 'ajax' あり?"}
+    %% IsPost -- "No" --> IsAjax{"GET param 'ajax' あり?"}
+    IsPost -- "No" --> IsAjax{"GETパラメータはajaxであるか?"}
     
     IsAjax -- "Yes" --> GetRoomID["room_id取得"]
     GetRoomID --> BuildQueryAjax["クエリ作成<br/>WHERE room_id"]
     BuildQueryAjax --> ExecQueryAjax["DB検索 SELECT"]
     ExecQueryAjax --> FetchRowsAjax["結果を配列化"]
-    FetchRowsAjax --> ResJSON["JSONデータ返却"] --> End
+    FetchRowsAjax --> ResJSON["JSONデータを出力"] --> End
 
     %% HTML描画処理 (初期表示)
     IsAjax -- "No" --> BuildQueryHTML["クエリ作成<br/>最新10件"]
