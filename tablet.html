@@ -2,102 +2,122 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>詳細設計書 - 学生用タブレット処理フロー</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>詳細設計書 - QR出席登録アプリ</title>
     <style>
-        body { font-family: 'Meiryo', sans-serif; background-color: #f0f2f5; padding: 20px; line-height: 1.4; }
-        .container { max-width: 850px; margin: auto; background: white; padding: 40px; border-radius: 12px; shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h1 { text-align: center; color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 15px; margin-bottom: 30px; }
-        
-        .flow-container { display: flex; flex-direction: column; align-items: center; }
-        
-        /* 基本の箱 */
-        .node { width: 320px; padding: 12px; margin: 10px 0; text-align: center; border: 2px solid #333; position: relative; font-weight: bold; background: #fff; }
-        
-        /* 形状別 */
-        .start-end { border-radius: 30px; background: #34495e; color: white; }
-        .process { background: #fff; }
-        .diamond { 
-            width: 140px; height: 140px; border: 2px solid #333; transform: rotate(45deg); 
-            margin: 30px 0; display: flex; align-items: center; justify-content: center; background: #fff;
-        }
-        .diamond-text { transform: rotate(-45deg); font-size: 13px; line-height: 1.2; }
-        
-        /* 矢印 */
-        .arrow { font-size: 24px; color: #333; margin: -5px 0; }
-        
-        /* 色付け */
-        .bg-blue { background-color: #e8f4fd; }
-        .bg-green { background-color: #eafaf1; border-color: #27ae60; }
-        .bg-red { background-color: #fdedec; border-color: #e74c3c; }
-
-        /* 特殊ラベル */
-        .label-yes { margin-top: -20px; margin-bottom: 5px; color: #27ae60; font-weight: bold; }
-        .label-no { margin-left: 200px; margin-top: -100px; color: #e74c3c; font-weight: bold; }
-        
-        .loop-line {
-            width: 100px; height: 2px; background: #e74c3c; position: absolute; right: -100px; top: 50%;
-        }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 0 auto; padding: 20px; background-color: #f4f7f9; }
+        .container { background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { border-bottom: 3px solid #2c3e50; padding-bottom: 10px; color: #2c3e50; }
+        h2 { border-left: 5px solid #3498db; padding-left: 15px; margin-top: 30px; color: #2980b9; }
+        h3 { color: #2c3e50; margin-top: 20px; border-bottom: 1px solid #eee; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #f8f9fa; font-weight: bold; }
+        .flow-box { background: #eef2f7; border: 1px dashed #7f8c8d; padding: 20px; font-family: 'Courier New', monospace; white-space: pre-wrap; margin: 10px 0; border-radius: 5px; }
+        .status-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.9em; background: #e74c3c; color: #fff; }
+        .note { font-size: 0.9em; color: #666; font-style: italic; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>8-1. フローチャート（学生用タブレットアプリ）</h1>
+        <h1>詳細設計書：出席管理クライアント（Android）</h1>
         
-        <div class="flow-container">
-            <div class="node start-end">開始（アプリ起動）</div>
-            <div class="arrow">↓</div>
-            
-            <div class="node process bg-blue">カメラ権限の確認・取得</div>
-            <div class="arrow">↓</div>
-            
-            <div class="node node-anchor bg-green" style="border-style: double; border-width: 4px;">QRスキャン待機状態 (startScanning)</div>
-            <div class="arrow">↓</div>
-            
-            <div class="node process">QRコードを検出</div>
-            <div class="arrow">↓</div>
-            
-            <div class="node bg-red">スキャンを一時停止 (barcodeView.pause)</div>
-            <div class="arrow">↓</div>
+        <section>
+            <h2>1. モジュール概要</h2>
+            <p>本モジュールは、Android端末のカメラを使用してQRコードをスキャンし、学内サーバーへ出席ログを送信する学生用アプリケーションである。</p>
+            <table>
+                <tr><th>パッケージ名</th><td>jp.ac.kanto_pc.nemoto.g3_qr_read</td></tr>
+                <tr><th>主要クラス</th><td>MainActivity, AttendanceLog</td></tr>
+                <tr><th>外部ライブラリ</th><td>ZXing (QRスキャン), OkHttp (通信), Gson (JSON変換)</td></tr>
+            </table>
+        </section>
 
-            <div class="diamond"><div class="diamond-text">データに<br>room_idが含まれるか</div></div>
-            <div class="label-no">No (不正なQR)</div>
-            <div class="node bg-red" style="margin-top: -20px;">エラー表示：教室QRではありません</div>
-            <div class="arrow">↓</div>
-            <div class="node bg-blue">3秒待機 (resumeScanWithDelay)</div>
-            <div style="color: #e74c3c; font-size: 12px; margin-bottom: 20px;">↑ スキャン再開へ戻る ↑</div>
+        <section>
+            <h2>2. 処理フロー詳細</h2>
+            <h3>2.1 初期化・権限確認</h3>
+            <ul>
+                <li><code>onCreate</code>：エッジトゥエッジ表示設定、ビューの紐付けを実行。</li>
+                <li><code>checkCameraPermission</code>：<code>Manifest.permission.CAMERA</code>の有無を確認。未許可時はリクエストを表示し、許可時はスキャンを開始する。</li>
+            </ul>
 
-            <div class="label-yes">Yes (正常)</div>
-            <div class="node process">roomIdのパース・教室名変換</div>
-            <div class="arrow">↓</div>
-            
-            <div class="node process">端末IPアドレス取得 (user_id)</div>
-            <div class="arrow">↓</div>
-            
-            <div class="node process">AttendanceLogのJSON化</div>
-            <div class="arrow">↓</div>
-            
-            <div class="node process bg-blue">サーバへPOST送信 (10.100.56.163)</div>
-            <div class="arrow">↓</div>
+            <h3>2.2 スキャン・解析ロジック（startScanning）</h3>
+            <p>連続スキャンモードで動作し、以下の手順でQRデータをバリデーションする。</p>
+            <div class="flow-box">
+1. QR検知：isScanningフラグをfalseにし、barcodeView.pause()で重複読み取りを防止。
+2. 形式チェック：文字列に "room_id=" と "period=" が含まれているか確認。
+3. パラメータ抽出：extractParamメソッドにより数値を切り出し、int型へ変換。
+   - 失敗時：resultTextに「データ解析失敗」を表示。3秒後に自動復帰。
+4. 情報補完：
+   - getRoomName(roomId)：IDから教室名（例：0-502）を紐付け。
+   - getMyIpAddress()：WifiManagerから端末のIPアドレスを取得（user_idとする）。
+            </div>
 
-            <div class="diamond"><div class="diamond-text">HTTP通信成功？</div></div>
-            
-            <div class="label-no">No (Failure)</div>
-            <div class="node bg-red" style="margin-top: -20px;">トースト表示：「送信失敗」</div>
-            <div class="arrow">↓</div>
-            <div class="node bg-blue">スキャン再開処理へ</div>
+            <h3>2.3 サーバー通信（sendToServer）</h3>
+            <p>JSON形式で出席データをPOST送信する。</p>
+            <table>
+                <tr><th>送信先URL</th><td>http://10.100.56.163:5000/attendance</td></tr>
+                <tr><th>HTTPメソッド</th><td>POST</td></tr>
+                <tr><th>待機処理</th><td>送信完了/失敗のトースト表示後、3秒のディレイを挟んで次動作へ遷移。</td></tr>
+            </table>
+        </section>
 
-            <div class="label-yes">Yes (Response)</div>
-            <div class="node bg-green">トースト表示：「出席を記録しました」</div>
-            <div class="arrow">↓</div>
+        <section>
+            <h2>3. フローチャート（ロジック図）</h2>
             
-            <div class="node bg-blue">3秒待機</div>
-            <div class="arrow">↓</div>
-            
-            <div class="node process">ブラウザでWebページを表示</div>
-            <div class="arrow">↓</div>
-            
-            <div class="node start-end">終了</div>
-        </div>
+            <div class="flow-box" style="font-family: 'MS Gothic', sans-serif;">
+[開始]
+  ↓
+[カメラ権限チェック] ──(NG)─→ [権限許可リクエスト]
+  ↓(OK)
+[スキャン待機状態] ←──────────┐
+  ↓(検知)                             │
+[スキャン一時停止]                     │
+  ↓                                   │
+＜バリデーション＞ ──(不正)─→ [エラー表示] ─→ [3秒待機] ──┘
+  ↓(正常)
+[IPアドレス/教室名取得]
+  ↓
+[サーバーへPOST送信]
+  ↓
+＜送信結果＞ ───(失敗)─→ [トースト表示] ─→ [3秒待機] ──┘
+  ↓(成功)
+[完了トースト表示]
+  ↓
+[3秒待機]
+  ↓
+[ブラウザでポータルを開く]
+  ↓
+[終了]
+            </div>
+        </section>
+
+        <section>
+            <h2>4. データ定義</h2>
+            <h3>AttendanceLog クラス</h3>
+            <table>
+                <thead>
+                    <tr><th>項目名</th><th>型</th><th>論理名</th><th>内容</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>user_id</td><td>String</td><td>ユーザーID</td><td>端末のIPアドレス（192.168...）</td></tr>
+                    <tr><td>room_id</td><td>int</td><td>教室ID</td><td>1:0-502, 2:0-504, 3:0-506</td></tr>
+                    <tr><td>status</td><td>String</td><td>状態</td><td>"出席" 固定</td></tr>
+                    <tr><td>period</td><td>int</td><td>時限</td><td>1～4（QRコードより取得）</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2>5. 画面仕様</h2>
+            <ul>
+                <li><strong>CompoundBarcodeView</strong>：画面上部。カメラプレビューを表示。</li>
+                <li><strong>TextView (resultText)</strong>：画面下部。スキャン結果やエラーメッセージ、送信状態を表示。</li>
+            </ul>
+        </section>
+
+        <footer style="margin-top: 50px; border-top: 1px solid #ccc; padding-top: 10px; text-align: center;">
+            <p class="note">作成日：2026年1月30日 / 関東PC 根本研究室 プロジェクト資料</p>
+        </footer>
     </div>
 </body>
 </html>

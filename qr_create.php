@@ -2,7 +2,9 @@
 //qr_create.php
 header("Content-Type: application/json; charset=UTF-8");
 
-// GET‚Ì‚Ý‹–‰Â
+date_default_timezone_set('Asia/Tokyo');
+
+// GETã®ã¿è¨±å¯
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
     echo json_encode(["status" => "ng", "error" => "GET only"]);
@@ -15,13 +17,13 @@ $now = time();
 $token  = null;
 $expiry = 0;
 
-// Šù‘¶ƒg[ƒNƒ“‚ª‚ ‚é‚©Šm”F
+// æ—¢å­˜ãƒˆãƒ¼ã‚¯ãƒ³ãŒã‚ã‚‹ã‹ç¢ºèª
 if (file_exists($TOKEN_FILE)) {
     $content = trim(file_get_contents($TOKEN_FILE));
     if ($content !== '') {
         list($savedToken, $savedExpiry) = explode(",", $content);
 
-        // ‚Ü‚¾—LŒø‚È‚çÄ—˜—p
+        // ã¾ã æœ‰åŠ¹ãªã‚‰å†åˆ©ç”¨
         if ($savedExpiry > $now) {
             $token  = $savedToken;
             $expiry = (int)$savedExpiry;
@@ -29,10 +31,25 @@ if (file_exists($TOKEN_FILE)) {
     }
 }
 
-// ŠúŒÀØ‚ê or –³‚¯‚ê‚ÎV‹K¶¬
+// ----- æ™‚é™(period)ã®åˆ¤å®š-----
+$currentTime = date('H:i');
+$period = 0; // ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã¯æŽˆæ¥­æ™‚é–“å¤– 
+
+if ($currentTime >= '08:50' && $currentTime <= '10:30') {
+    $period = 1; // 1æ™‚é™ 
+} elseif ($currentTime >= '10:35' && $currentTime <= '12:15') {
+    $period = 2; // 2æ™‚é™ 
+} elseif ($currentTime >= '13:00' && $currentTime <= '14:40') {
+    $period = 3; // 3æ™‚é™ 
+} elseif ($currentTime >= '14:45' && $currentTime <= '16:25') {
+    $period = 4; // 4æ™‚é™ 
+}
+// ------------------------------------
+
+// æœŸé™åˆ‡ã‚Œ or ç„¡ã‘ã‚Œã°æ–°è¦ç”Ÿæˆ
 if ($token === null) {
-    $token  = bin2hex(random_bytes(2)); // 4•¶Žš
-    $expiry = $now + 300;               // 5•ª
+    $token  = bin2hex(random_bytes(2)); // 4æ–‡å­—
+    $expiry = $now + 300;               // 5åˆ†
 
     file_put_contents(
         $TOKEN_FILE,
@@ -40,14 +57,14 @@ if ($token === null) {
         LOCK_EX
     );
 }
-
-// URL¶¬
+// URLç”Ÿæˆ
 //$qr_url = "http://10.100.56.163/s.php?t=$token";
-$qr_data = "t=$token";
+$qr_data = "t=$token&period=$period";
 
-// JSON•Ô‹p
+// JSONè¿”å´
 echo json_encode([
     "status"  => "ok",
     "qr_data"  => $qr_data,
     "expires" => $expiry
+    
 ]);

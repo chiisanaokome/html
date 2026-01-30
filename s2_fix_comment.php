@@ -152,6 +152,7 @@ if (isset($_GET['ajax'])) {
     header('Content-Type: application/json; charset=UTF-8');
     
     // URLパラメータから room_id を取得 (なければ null)
+    // ここで null が取れたら全部屋表示
     $filterRoomId = isset($_GET['room_id']) ? $_GET['room_id'] : null;
     
     // クエリを作成して実行

@@ -3,7 +3,7 @@ flowchart TD
     
     %% DB接続判定
     DBConnect --> IsDBConnected{"接続成功?"}
-    IsDBConnected -- "No" --> CheckErrType{"リクエストはPOST または Ajaxか?"}
+    IsDBConnected -- "No" --> CheckErrType{"リクエストは<br>POST または Ajaxか?"}
     CheckErrType -- "Yes" --> Res500["JSON 500 Error"] --> End(["終了"])
     CheckErrType -- "No" --> ResText["Text Error Message"] --> End
     
@@ -11,8 +11,8 @@ flowchart TD
 
     %% トークン認証ロジック
     subgraph Auth ["トークン認証"]
-        CheckAuthLogic{"GET かつ Ajaxではない ?"}
-        CheckAuthLogic -- "Yes" --> CheckTokenParam{"URLにトークンがある?"}
+        CheckAuthLogic{"リクエストは<br>GET かつ Ajaxではない ?"}
+        CheckAuthLogic -- "Yes" --> CheckTokenParam{"URLのパラメーターに<br>トークンがある?"}
         CheckTokenParam -- "No" --> Res403_1["403 Token Required"] --> End
         CheckTokenParam -- "Yes" --> ReadTokenFile["トークンファイル読み込み"]
         ReadTokenFile --> VerifyToken{"トークンが 一致 かつ<br>有効期限内 か?"}
@@ -42,14 +42,17 @@ flowchart TD
     %% IsPost -- "No" --> IsAjax{"GET param 'ajax' あり?"}
     IsPost -- "No" --> IsAjax{"GETパラメータはajaxであるか?"}
     
-    IsAjax -- "Yes" --> GetRoomID["room_id取得"]
-    GetRoomID --> BuildQueryAjax["クエリ作成<br/>WHERE room_id"]
+    IsAjax -- "Yes" --> GetRoomID["URLパラメータより<br>room_id取得"]
+    GetRoomID --> IfGetRoomID_Null{"room_idはnull以外か？"}
+    IfGetRoomID_Null -- "No"--> BuildQueryHTML
+    %% GetRoomID --> BuildQueryAjax["クエリ作成<br/>WHERE room_id"]
+    IfGetRoomID_Null -- "Yes" --> BuildQueryAjax["クエリ作成<br>部屋は"room_id]
     BuildQueryAjax --> ExecQueryAjax["DB検索 SELECT"]
-    ExecQueryAjax --> FetchRowsAjax["結果を配列化"]
+    ExecQueryAjax --> FetchRowsAjax["結果を配列に格納"]
     FetchRowsAjax --> ResJSON["JSONデータを出力"] --> End
 
     %% HTML描画処理 (初期表示)
     IsAjax -- "No" --> BuildQueryHTML["クエリ作成<br/>最新10件"]
     BuildQueryHTML --> ExecQueryHTML["DB検索 SELECT"]
-    ExecQueryHTML --> FetchRowsHTML["結果を配列化"]
+    ExecQueryHTML --> FetchRowsHTML["結果を配列に格納"]
     FetchRowsHTML --> RenderHTML["HTMLページ描画<br/>(Table, JS含む)"] --> End

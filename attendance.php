@@ -1,152 +1,260 @@
+<?php
+/**
+ * attendance.php
+ * 時間割(schedules)テーブル対応版
+ */
+
+date_default_timezone_set('Asia/Tokyo');
+
+// 1. データベース接続情報
+$host = '127.0.0.1';
+$port = '5432';
+$dbname = 'group3'; 
+$user = 'gp3';
+$pass = 'gpz';
+
+$TOTAL_LECTURES = 15;
+$PASS_LINE = 0.8;
+
+// 曜日名変換
+$day_names = ['', '月', '火', '水', '木', '金', '土', '日'];
+
+// --- A. AJAXリクエスト（データ取得用） ---
+if (isset($_GET['ajax'])) {
+    header("Content-Type: application/json; charset=UTF-8");
+    try {
+        $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+        $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+        
+        $schedule_id = (int)$_GET['schedule_id'];
+
+        // スケジュールから教室・時限を取得
+        $schedule = $pdo->prepare("SELECT room_id, period, subject_name, day_of_week FROM schedules WHERE id = ?");
+        $schedule->execute([$schedule_id]);
+        $sched = $schedule->fetch();
+
+        if (!$sched) {
+            echo json_encode(['error' => 'スケジュールが見つかりません']);
+            exit;
+        }
+
+        $sql = "
+            SELECT u.user_code, u.name, COUNT(DISTINCT al.logged_at::date) as attended_count
+            FROM users u
+            LEFT JOIN attendance_logs al ON u.id = al.user_id 
+                AND al.room_id = :room 
+                AND al.period = :period
+            WHERE u.role = '学生'
+            GROUP BY u.user_code, u.name
+            ORDER BY u.user_code ASC
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':room', $sched['room_id'], PDO::PARAM_INT);
+        $stmt->bindValue(':period', $sched['period'], PDO::PARAM_INT);
+        $stmt->execute();
+        
+        $result = [
+            'schedule' => $sched,
+            'students' => $stmt->fetchAll()
+        ];
+        
+        echo json_encode($result);
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(['error' => $e->getMessage()]);
+        exit;
+    }
+}
+
+// --- B. 時間割リスト取得 ---
+try {
+    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+    $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+    
+    $schedule_list = $pdo->query("
+        SELECT s.id, s.day_of_week, s.period, s.subject_name, r.name as room_name
+        FROM schedules s
+        JOIN rooms r ON s.room_id = r.id
+        ORDER BY s.day_of_week ASC, s.period ASC
+    ")->fetchAll();
+} catch (PDOException $e) {
+    die("DB接続エラー: " . $e->getMessage());
+}
+?>
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>出席管理画面 - 学校スマート管理システム</title>
+    <title>単位判定管理システム（時間割対応版）</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root { --main-blue: #007bff; --bg-gray: #f4f7f6; --absent-red: #ff5252; --present-green: #4caf50; }
-        body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: var(--bg-gray); margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 1100px; margin: auto; background: white; border-radius: 12px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); overflow: hidden; }
-
-        /* ヘッダーエリア */
-        .header { background: #fff; padding: 20px; border-bottom: 2px solid #eee; display: flex; justify-content: space-between; align-items: center; }
-        .header-title { font-size: 1.4em; font-weight: bold; color: var(--main-blue); }
+        :root { --main-blue: #007bff; --bg-gray: #f4f7f6; --pass-green: #28a745; --fail-red: #dc3545; --btn-gray: #6c757d; }
+        body { font-family: sans-serif; background-color: var(--bg-gray); padding: 20px; }
+        .container { max-width: 1100px; margin: auto; background: white; border-radius: 12px; padding: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
         
-        /* 選択エリア（教室・回数・時限） */
-        .selector-group { display: flex; flex-wrap: wrap; gap: 15px; padding: 20px; background: #fafafa; border-bottom: 1px solid #eee; }
-        .filter-item { display: flex; flex-direction: column; gap: 5px; }
-        .filter-item label { font-size: 0.8em; color: #666; font-weight: bold; }
-        .styled-select { padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 1em; background: white; cursor: pointer; font-weight: bold; min-width: 120px; }
-
-        /* 集計バー */
-        .summary-bar { display: flex; gap: 30px; padding: 15px 20px; font-size: 1.1em; font-weight: bold; border-bottom: 1px solid #eee; }
-        .count-item.present { color: var(--present-green); }
-        .count-item.absent { color: var(--absent-red); }
-
-        /* 出席管理グリッド */
-        .attendance-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); 
-            gap: 15px; padding: 20px; background: #fff;
-        }
-
-        /* 学生管理カード */
-        .student-card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #fff;
-            transition: 0.2s;
-        }
-        .name-info { display: flex; flex-direction: column; }
-        .u-code { font-size: 0.75em; color: #888; }
-        .u-name { font-size: 1.1em; font-weight: bold; }
+        /* 操作エリア */
+        .control-bar { display: flex; gap: 15px; background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px; align-items: flex-end; border: 1px solid #eee; flex-wrap: wrap; }
+        .styled-select { padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; cursor: pointer; background: white; min-width: 300px; }
         
-        /* 状態表示ラベル */
-        .status-indicator {
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-weight: bold;
-            color: white;
-            font-size: 0.9em;
-            text-align: center;
-            min-width: 60px;
-        }
-        .bg-present { background-color: var(--present-green); }
-        .bg-absent { background-color: var(--absent-red); }
+        /* 授業情報表示 */
+        .subject-info { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: none; }
+        .subject-info h3 { margin: 0 0 8px 0; font-size: 1.3em; }
+        .subject-info p { margin: 5px 0; opacity: 0.9; }
+        
+        /* ボタン共通設定 */
+        .btn { padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; transition: 0.2s; text-decoration: none; border: none; font-size: 0.95em; }
+        .btn:active { transform: scale(0.95); }
 
-        /* フッター */
-        .footer { padding: 20px; border-top: 1px solid #eee; display: flex; justify-content: space-between; }
-        .btn-update { background: var(--main-blue); color: white; border: none; padding: 10px 25px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        /* 更新ボタン */
+        .btn-refresh { background: var(--main-blue); color: white; }
+        .btn-refresh:hover { background: #0056b3; }
+
+        /* 出席簿ボタン */
+        .btn-rollbook { background: var(--btn-gray); color: white; }
+        .btn-rollbook:hover { background: #5a6268; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 15px; border-bottom: 1px solid #eee; text-align: center; }
+        th { background: #f1f3f5; }
+        .badge { padding: 5px 12px; border-radius: 20px; color: white; font-weight: bold; font-size: 0.85em; }
+        .bg-pass { background: var(--pass-green); }
+        .bg-fail { background: var(--fail-red); }
+        
+        .loading { opacity: 0.5; pointer-events: none; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="header">
-        <div class="header-title"><i class="fas fa-users-cog"></i> リアルタイム出席管理</div>
-        <div id="clock" style="font-weight: bold; color: #666;"></div>
+<div class="container" id="main-container">
+    <h2 style="color: var(--main-blue);"><i class="fas fa-graduation-cap"></i> 単位判定・出席状況一覧（時間割対応版）</h2>
+
+    <div class="control-bar">
+        <div style="flex: 1;">
+            <label style="font-size: 0.8em; font-weight: bold; display: block; color: #666;">対象授業を選択</label>
+            <select id="schedule_id" class="styled-select" onchange="updateTable()">
+                <option value="">-- 授業を選択してください --</option>
+                <?php foreach ($schedule_list as $s): ?>
+                    <option value="<?= $s['id'] ?>">
+                        <?= $day_names[$s['day_of_week']] ?>曜<?= $s['period'] ?>限 - 
+                        <?= htmlspecialchars($s['subject_name']) ?> 
+                        (<?= htmlspecialchars($s['room_name']) ?>)
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <button class="btn btn-refresh" onclick="updateTable()">
+            <i class="fas fa-sync-alt" id="refresh-icon"></i> 最新の状態にする
+        </button>
+
+        <a href="rollbook.php" class="btn btn-rollbook">
+            <i class="fas fa-table"></i> 出席簿を表示
+        </a>
     </div>
 
-    <form id="manage-form" class="selector-group">
-        <div class="filter-item">
-            <label>対象教室</label>
-            <select class="styled-select" name="room_id">
-                <option value="1">0-502</option>
-                <option value="2">0-504</option>
-                <option value="3">0-506</option>
-            </select>
-        </div>
-        <div class="filter-item">
-            <label>講義回数</label>
-            <select class="styled-select" name="lecture_count">
-                <script>
-                    for(let i=1; i<=15; i++) {
-                        document.write(`<option value="${i}">第${i}回 講義</option>`);
-                    }
-                </script>
-            </select>
-        </div>
-        <div class="filter-item">
-            <label>時限</label>
-            <select class="styled-select" name="period">
-                <option value="1">1時限</option>
-                <option value="2">2時限</option>
-                <option value="3">3時限</option>
-                <option value="4">4時限</option>
-            </select>
-        </div>
-        <div class="filter-item" style="justify-content: flex-end;">
-            <button type="button" class="btn-update" onclick="loadStatus()">表示更新</button>
-        </div>
-    </form>
-
-    <div class="summary-bar">
-        <span>本日の出席状況</span>
-        <div class="count-item present">出席: <span id="p-count">18</span>名</div>
-        <div class="count-item absent">欠席: <span id="a-count">2</span>名</div>
+    <!-- 授業情報表示エリア -->
+    <div class="subject-info" id="subject-info">
+        <h3 id="subject-title"></h3>
+        <p id="subject-detail"></p>
     </div>
 
-    <div class="attendance-grid" id="student-list">
-        <div class="student-card">
-            <div class="name-info">
-                <span class="u-code">S25001</span>
-                <span class="u-name">田所 太郎</span>
-            </div>
-            <div class="status-indicator bg-present">出席</div>
-        </div>
-        <div class="student-card">
-            <div class="name-info">
-                <span class="u-code">S25002</span>
-                <span class="u-name">小川 次郎</span>
-            </div>
-            <div class="status-indicator bg-absent">欠席</div>
-        </div>
-        </div>
+    <table>
+        <thead>
+            <tr>
+                <th>学籍番号</th>
+                <th>氏名</th>
+                <th>出席回数</th>
+                <th>出席率</th>
+                <th>判定</th>
+            </tr>
+        </thead>
+        <tbody id="student-table-body">
+            <tr><td colspan="5" style="color: #999;">授業を選択してください</td></tr>
+        </tbody>
+    </table>
 
-    <div class="footer">
-        <a href="home.php" style="text-decoration:none; color:var(--main-blue); font-weight:bold;"><i class="fas fa-home"></i> トップへ戻る</a>
-        <span style="font-size: 0.85em; color: #999;">※学生がQRをスキャンすると自動的に出席へ切り替わります</span>
+    <div style="margin-top:20px; text-align:center; border-top: 1px solid #eee; padding-top: 20px;">
+        <a href="home.php" style="color:var(--main-blue); text-decoration:none; font-weight:bold;">システムトップへ戻る</a>
     </div>
 </div>
 
 <script>
-    function updateClock() {
-        const now = new Date();
-        document.getElementById('clock').innerText = now.toLocaleTimeString();
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
+    const TOTAL_LECTURES = <?= $TOTAL_LECTURES ?>;
+    const PASS_LINE = <?= $PASS_LINE ?>;
+    const dayNames = <?= json_encode($day_names) ?>;
 
-    function loadStatus() {
-        // ここでDBへfetchを行い、選択された教室・回数・時限に一致するデータを取得
-        console.log("フィルタ条件でデータを再読み込みします");
+    async function updateTable() {
+        const scheduleId = document.getElementById('schedule_id').value;
+        
+        if (!scheduleId) {
+            document.getElementById('student-table-body').innerHTML = 
+                '<tr><td colspan="5" style="color: #999;">授業を選択してください</td></tr>';
+            document.getElementById('subject-info').style.display = 'none';
+            return;
+        }
+
+        const icon = document.getElementById('refresh-icon');
+        const container = document.getElementById('main-container');
+
+        icon.classList.add('fa-spin');
+        container.classList.add('loading');
+        
+        try {
+            const response = await fetch(`attendance.php?ajax=1&schedule_id=${scheduleId}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                alert('エラー: ' + data.error);
+                return;
+            }
+
+            // 授業情報を表示
+            const sched = data.schedule;
+            document.getElementById('subject-title').textContent = sched.subject_name;
+            document.getElementById('subject-detail').textContent = 
+                `${dayNames[sched.day_of_week]}曜日 ${sched.period}時限目`;
+            document.getElementById('subject-info').style.display = 'block';
+
+            const tbody = document.getElementById('student-table-body');
+            tbody.innerHTML = '';
+
+            data.students.forEach(s => {
+                const count = parseInt(s.attended_count);
+                const rate = (count / TOTAL_LECTURES) * 100;
+                const isPass = (count / TOTAL_LECTURES) >= PASS_LINE;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${s.user_code}</td>
+                        <td><strong>${s.name}</strong></td>
+                        <td>${count} / ${TOTAL_LECTURES}</td>
+                        <td style="color: ${isPass ? '' : 'red'}; font-weight: bold;">
+                            ${rate.toFixed(1)} %
+                        </td>
+                        <td>
+                            <span class="badge ${isPass ? 'bg-pass' : 'bg-fail'}">
+                                ${isPass ? '◯ 合格圏' : '× 不足'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (error) {
+            console.error("更新失敗:", error);
+            alert('データの取得に失敗しました');
+        } finally {
+            setTimeout(() => {
+                icon.classList.remove('fa-spin');
+                container.classList.remove('loading');
+            }, 300);
+        }
     }
+
+    // 初期状態では何も表示しない
+    window.onload = function() {
+        document.getElementById('subject-info').style.display = 'none';
+    };
 </script>
 </body>
 </html>

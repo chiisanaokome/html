@@ -11,7 +11,7 @@
         
         .detail-container { 
             width: 98%; 
-            max-width: 1400px; 
+            max-width: 1400px; /* あまりに広がりすぎないよう上限を設定 */
             height: 95vh; 
             background: white; 
             border: 1px solid #333; 
@@ -25,20 +25,7 @@
         /* ヘッダー */
         .detail-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 10px; flex-shrink: 0; }
         .header-left { font-weight: bold; font-size: 1.2em; display: flex; align-items: center; gap: 10px; }
-        
-        /* 右側ヘッダー修正：日付選択と更新時間を並べる */
-        .header-right { font-size: 1em; color: #555; font-weight: bold; display: flex; align-items: center; }
-        
-        /* 日付選択カレンダーのスタイル */
-        #date_select {
-            font-size: 1em;
-            padding: 4px;
-            margin-right: 15px; /* 時間との間の余白 */
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
+        .header-right { font-size: 1em; color: #555; font-weight: bold; }
         .badge { background: red; color: white; padding: 3px 15px; border-radius: 20px; font-size: 0.8em; }
 
         /* 判定・リスクエリア（上部） */
@@ -52,7 +39,7 @@
         .status-circle { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #333; margin: 5px auto; display: flex; align-items: center; justify-content: center; font-size: 1.1em; background: #fff; }
 
         /* グラフエリア（中央・自動伸長） */
-        .charts-container { flex-grow: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; } 
+        .charts-container { flex-grow: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; } /* min-height: 0 が重要 */
         .chart-card { border: 1px solid #ccc; padding: 10px; display: flex; align-items: center; flex: 1; min-height: 100px; background: #fff; }
         .chart-info { width: 120px; text-align: center; border-right: 2px solid #eee; padding-right: 10px; }
         .chart-title { font-weight: bold; font-size: 1.2em; }
@@ -78,10 +65,7 @@
             </select>
             <span id="light_badge" class="badge">点灯中</span>
         </div>
-        <div class="header-right">
-            <input type="date" id="date_select" onchange="updateAll()">
-            <span>最終更新: <span id="last_update">--:--:--</span></span>
-        </div>
+        <div class="header-right">最終更新: <span id="last_update">--:--:--</span></div>
     </div>
 
     <div class="top-info-row">
@@ -139,19 +123,10 @@
 
     async function updateAll() {
         const roomId = document.getElementById('room_select').value;
-        const dateVal = document.getElementById('date_select').value; // 日付を取得
-
         try {
-            // PHPへ日付パラメータも渡すように変更
-            const res = await fetch(`sensor.php?ajax=1&room_id=${roomId}&date=${dateVal}`);
+            const res = await fetch(`sensor.php?ajax=1&room_id=${roomId}`);
             const data = await res.json();
-            
-            // データが無い場合の処理
-            if (!data || data.length === 0) {
-                // グラフなどをリセットする処理をここに入れると親切ですが、今回は省略
-                console.log("No data for this date");
-                return;
-            }
+            if (!data || data.length === 0) return;
 
             const sorted = [...data].reverse();
             const labels = sorted.map(r => r.measured_at.split(' ')[1].substring(0, 8)); // 秒まで表示
@@ -164,8 +139,6 @@
             document.getElementById('t_val').innerText = `${parseFloat(latest.temperature).toFixed(1)}℃`;
             document.getElementById('h_val').innerText = `${latest.humidity}%`;
             document.getElementById('c_val').innerText = `${latest.co2}`;
-            
-            // 最終更新時間はデータの日時を使う
             document.getElementById('last_update').innerText = latest.measured_at.split(' ')[1];
 
             const isOn = parseInt(latest.illuminance) > 100;
@@ -203,18 +176,11 @@
         }
     }
 
-    // 初期化処理
-    window.onload = function() {
-        // カレンダーを今日の日付にする
-        document.getElementById('date_select').valueAsDate = new Date();
-
-        initChart('tChart', 'red');
-        initChart('hChart', 'blue');
-        initChart('cChart', 'gray');
-        
-        updateAll();
-        setInterval(updateAll, 5000);
-    };
+    initChart('tChart', 'red');
+    initChart('hChart', 'blue');
+    initChart('cChart', 'gray');
+    updateAll();
+    setInterval(updateAll, 5000);
 </script>
 </body>
 </html>
