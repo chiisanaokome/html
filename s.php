@@ -3,7 +3,7 @@
 // -------------------- 設定・DB接続 --------------------
 header("Content-Type: text/html; charset=UTF-8");
 
-$host = '127.0.0.1';
+$host = '10.100.56.163';
 $port = '5432';
 $dbname = 'group3';
 $user = 'gthree';
