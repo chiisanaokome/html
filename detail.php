@@ -176,7 +176,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_dates') {
 
     <div class="footer-btns">
         <a href="home.php" class="nav-btn">トップページへ戻る</a>
-        <a href="#" class="nav-btn btn-blue">出席管理画面を開く</a>
+        <a href="attendance.php" class="nav-btn btn-blue">出席管理画面を開く</a>
     </div>
 </div>
 

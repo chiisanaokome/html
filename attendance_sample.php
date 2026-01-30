@@ -55,7 +55,11 @@ try {
             SELECT 
                 u.user_code, 
                 u.name, 
-                COUNT(DISTINCT al.logged_at::date) as attended_count,
+                COUNT(DISTINCT CASE 
+                    WHEN al.action = '出席' 
+                    THEN al.logged_at::date 
+                    ELSE NULL 
+                END) as attended_count,
                 MAX(CASE 
                     WHEN al.logged_at::date = :target_date 
                     THEN al.action 
@@ -288,6 +292,9 @@ header("Content-Type: text/html; charset=UTF-8");
             tbody.innerHTML = '';
 
             data.students.forEach(s => {
+                // デバッグ用：取得したデータをコンソールに出力
+                console.log('Student:', s.name, 'attendance_status:', s.attendance_status, 'Type:', typeof s.attendance_status);
+                
                 const count = parseInt(s.attended_count);
                 const rate = (count / TOTAL_LECTURES) * 100;
                 const isPass = (count / TOTAL_LECTURES) >= PASS_LINE;
