@@ -3,6 +3,7 @@
  * attendance.php
  * デザイン：上のコード（画像再現版）
  * ロジック：下のコード（時間割・AJAX版）+ 日付指定判定
+ * 修正：プルダウンの表示を「時限 - 授業名」に変更
  */
 
 date_default_timezone_set('Asia/Tokyo');
@@ -87,6 +88,7 @@ try {
     $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
     $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
     
+    // 曜日は表示には使いませんが、並び順(ORDER BY)としては引き続き使用します
     $schedule_list = $pdo->query("
         SELECT s.id, s.day_of_week, s.period, s.subject_name, r.name as room_name
         FROM schedules s
@@ -322,8 +324,7 @@ $default_date = date('Y-m-d');
                 <option value="">-- 授業を選択してください --</option>
                 <?php foreach ($schedule_list as $s): ?>
                     <option value="<?= $s['id'] ?>">
-                        <?= $day_names[$s['day_of_week']] ?>曜<?= $s['period'] ?>限 - 
-                        <?= htmlspecialchars($s['subject_name']) ?> 
+                        <?= $s['period'] ?>限: <?= htmlspecialchars($s['subject_name']) ?> 
                         (<?= htmlspecialchars($s['room_name']) ?>)
                     </option>
                 <?php endforeach; ?>
@@ -352,7 +353,8 @@ $default_date = date('Y-m-d');
                 <th>出席回数</th>
                 <th>出席率</th>
                 <th>単位判定</th>
-                <th>当日状況</th> </tr>
+                <th>当日状況</th>
+            </tr>
         </thead>
         <tbody id="student-table-body">
             <tr>
