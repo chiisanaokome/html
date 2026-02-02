@@ -1,0 +1,65 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>ER図 - 学校管理システム</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'neutral' });</script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background-color: #f8f9fa; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>システム構成 ER図</h1>
+        
+        <pre class="mermaid">
+        erDiagram
+            users ||--o{ attendance_logs : "記録する"
+            rooms ||--o{ attendance_logs : "で行われる"
+            rooms ||--o{ sensor_logs : "の状態"
+            rooms ||--o{ schedules : "で実施"
+
+            users {
+                int id PK "利用者ID(IP)"
+                string user_code "学籍番号"
+                string name "氏名"
+                string role "区分"
+            }
+
+            rooms {
+                int id PK "教室ID"
+                string name "教室名"
+            }
+
+            attendance_logs {
+                int id PK "ログID"
+                int user_id FK "利用者ID"
+                int room_id FK "教室ID"
+                string action "出欠区分"
+                timestamp logged_at "記録日時"
+                int period "時限"
+            }
+
+            sensor_logs {
+                int room_id PK, FK "教室ID"
+                timestamp measured_at PK "取得日時"
+                decimal temperature "温度"
+                decimal humidity "湿度"
+                int co2 "CO2"
+                int illuminance "照度"
+            }
+
+            schedules {
+                int id PK "ID"
+                int day_of_week "曜日"
+                int period "時限"
+                string subject_name "科目名"
+                int roomid FK "教室ID"
+            }
+        </pre>
+    </div>
+</body>
+</html>

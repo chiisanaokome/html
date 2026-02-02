@@ -29,13 +29,15 @@ try {
     $pdo = new PDO($dsn, $user, $pass, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, 
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+	
     ]);
     $pdo->exec("SET NAMES 'UTF8'");
 
     // --- A. AJAXリクエスト（データ取得用） ---
     if (isset($_GET['ajax'])) {
-        header("Content-Type: application/json; charset=UTF-8");
         ob_clean(); 
+	header("Content-Type: application/json; charset=UTF-8");
+        
         
         $schedule_id = (int)$_GET['schedule_id'];
         $target_date = $_GET['target_date'] ?? date('Y-m-d');
@@ -51,41 +53,48 @@ try {
         }
 
         // 学生ごとの出席データを取得（累計 + 当日のaction列の値）
-        $sql = "
-            SELECT 
-                u.user_code, 
-                u.name, 
-                COUNT(DISTINCT CASE 
-                    WHEN al.action = '出席' 
-                    THEN al.logged_at::date 
-                    ELSE NULL 
-                END) as attended_count,
-                MAX(CASE 
-                    WHEN al.logged_at::date = :target_date 
-                    THEN al.action 
-                    ELSE NULL 
-                END) as attendance_status
-            FROM users u
-            LEFT JOIN attendance_logs al ON u.id = al.user_id 
-                AND al.room_id = :room 
-                AND al.period = :period
-            WHERE u.role = '学生'
-            GROUP BY u.user_code, u.name
-            ORDER BY u.user_code ASC
-        ";
-        $stmt = $pdo->prepare($sql);
-        $stmt->bindValue(':room', $sched['room_id'], PDO::PARAM_INT);
-        $stmt->bindValue(':period', $sched['period'], PDO::PARAM_INT);
-        $stmt->bindValue(':target_date', $target_date, PDO::PARAM_STR);
-        $stmt->execute();
+	$sql = "
+	        SELECT 
+	            u.user_code, 
+	            u.name,
+
+	            (SELECT COUNT(DISTINCT al2.logged_at::date)
+	             FROM attendance_logs al2
+	             WHERE al2.user_id = u.id
+	               AND al2.room_id = :room
+	               AND al2.period = :period
+	               AND al2.action = '出席'
+	            ) AS attended_count,
+
+	           (SELECT TRIM(CAST(MAX(al3.action) AS TEXT))
+	             FROM attendance_logs al3
+	             WHERE al3.user_id = u.id
+	               AND al3.room_id = :room
+	               AND al3.period = :period
+	               AND al3.logged_at::date = :target_date::date
+	            ) AS attendance_status
+	        FROM users u
+	        WHERE u.role = '学生'
+        	ORDER BY u.user_code ASC
+    	";
+	$stmt = $pdo->prepare($sql);
+	$stmt->bindValue(':room', $sched['room_id'], PDO::PARAM_INT);
+	$stmt->bindValue(':period', $sched['period'], PDO::PARAM_INT);
+	$stmt->bindValue(':target_date', $target_date, PDO::PARAM_STR);
+	$stmt->execute();
+	
+	$students_data = $stmt->fetchAll();
         
+	error_log(print_r($students_data, true));
         echo json_encode([
             'schedule' => $sched,
-            'students' => $stmt->fetchAll(),
+            'students' =>$students_data,
             'target_date' => $target_date
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
+    
+    
 
     // --- B. 初期表示用の時間割リスト取得 ---
     $schedule_list = $pdo->query("
@@ -98,10 +107,14 @@ try {
     // 授業が存在する曜日リストを抽出 (1:月?7:日)
     $valid_days = array_unique(array_column($schedule_list, 'day_of_week'));
     $valid_days_json = json_encode(array_values($valid_days));
+    
 
 } catch (Exception $e) {
     die("エラーが発生いたしました、お嬢様: " . $e->getMessage());
+    echo json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    exit;
 }
+
 
 header("Content-Type: text/html; charset=UTF-8");
 ?>
@@ -234,6 +247,7 @@ header("Content-Type: text/html; charset=UTF-8");
             }
         });
     });
+    
 
     function getDayOfWeek(dateString) {
         const date = new Date(dateString);
@@ -265,75 +279,99 @@ header("Content-Type: text/html; charset=UTF-8");
             '<tr><td colspan="6" style="color: #999; padding: 20px;">授業を選択してください</td></tr>';
     }
 
-    async function updateTable() {
-        const scheduleId = document.getElementById('schedule_id').value;
-        const targetDate = document.getElementById('target_date').value;
-        
-        if (!scheduleId) return;
+	async function updateTable() {
+	    const scheduleId = document.getElementById('schedule_id').value;
+	    const targetDate = document.getElementById('target_date').value;
 
-        const icon = document.getElementById('refresh-icon');
-        const container = document.getElementById('main-container');
-        icon.classList.add('fa-spin');
-        container.classList.add('loading');
-        
-        try {
-            const response = await fetch(`attendance.php?ajax=1&schedule_id=${scheduleId}&target_date=${targetDate}`);
-            const data = await response.json();
-            
-            if (data.error) throw new Error(data.error);
+	    console.log('scheduleId:', scheduleId, 'targetDate:', targetDate);
 
-            // 授業情報更新
-            document.getElementById('subject-title').textContent = data.schedule.subject_name;
-            document.getElementById('subject-detail').textContent = 
-                `${dayNames[data.schedule.day_of_week]}曜日 ${data.schedule.period}限 / 確認日: ${data.target_date}`;
-            document.getElementById('subject-info').style.display = 'block';
+	    if (!scheduleId || !targetDate) {
+	        alert('日付か授業が選択されていません');
+	        return;
+	    }
 
-            const tbody = document.getElementById('student-table-body');
-            tbody.innerHTML = '';
+	    const icon = document.getElementById('refresh-icon');
+	    const container = document.getElementById('main-container');
+	    icon.classList.add('fa-spin');
+	    container.classList.add('loading');
 
-            data.students.forEach(s => {
-                // デバッグ用：取得したデータをコンソールに出力
-                console.log('Student:', s.name, 'attendance_status:', s.attendance_status, 'Type:', typeof s.attendance_status);
-                
-                const count = parseInt(s.attended_count);
-                const rate = (count / TOTAL_LECTURES) * 100;
-                const isPass = (count / TOTAL_LECTURES) >= PASS_LINE;
-                const status = getAttendanceMark(s.attendance_status);
+	    try {
+	        const response = await fetch(`attendance.php?ajax=1&schedule_id=${scheduleId}&target_date=${targetDate}`);
+	        const data = await response.json();
 
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${s.user_code}</td>
-                    <td><strong>${s.name}</strong></td>
-                    <td>${count} / ${TOTAL_LECTURES}</td>
-                    <td style="color: ${isPass ? '' : 'red'}; font-weight: bold;">${rate.toFixed(1)}%</td>
-                    <td><span class="badge ${isPass ? 'bg-pass' : 'bg-fail'}">${isPass ? '合格圏' : '不足'}</span></td>
-                    <td><span class="attendance-mark ${status.class}">${status.text}</span></td>
-                `;
-                tbody.appendChild(row);
-            });
-        } catch (error) {
-            alert('データの取得に失敗いたしましたわ: ' + error.message);
-        } finally {
-            setTimeout(() => {
-                icon.classList.remove('fa-spin');
-                container.classList.remove('loading');
-            }, 300);
-        }
-    }
+	        console.log('Received data:', data);
+		console.log('--- 出席状況の型・中身チェック ---');
+		console.table(data.students.map(s => ({
+		    "氏名": s.name,
+		    "学籍番号": s.user_code,
+		    "生の status": s.attendance_status,
+		    "型の種類": typeof s.attendance_status,
+		    "文字数": s.attendance_status ? s.attendance_status.length : 0
+		})));
+	        if (data.error) throw new Error(data.error);
+
+	        document.getElementById('subject-title').textContent = data.schedule.subject_name;
+		document.getElementById('subject-detail').textContent =
+		    `${dayNames[data.schedule.day_of_week]}曜日 ${data.schedule.period}限 / 確認日: ${data.target_date || targetDate}`;
+
+	        document.getElementById('subject-info').style.display = 'block';
+
+	        const tbody = document.getElementById('student-table-body');
+	        tbody.innerHTML = '';
+
+	        data.students.forEach(s => {
+	            const count = parseInt(s.attended_count || 0);
+	            const rate = (count / TOTAL_LECTURES) * 100;
+	            const isPass = (count / TOTAL_LECTURES) >= PASS_LINE;
+	            
+		    const rawStatus = s.attendance_status; 
+   		    const status = getAttendanceMark(rawStatus);
+
+	            const row = document.createElement('tr');
+	            row.innerHTML = `
+		        <td>${s.user_code}</td>
+		        <td><strong>${s.name}</strong></td>
+		        <td>${count} / ${TOTAL_LECTURES}</td>
+		        <td style="font-weight: bold;">${rate.toFixed(1)}%</td>
+		        <td><span class="badge ${isPass ? 'bg-pass' : 'bg-fail'}">${isPass ? '合格圏' : '不足'}</span></td>
+		        <td>
+		            <span class="attendance-mark ${status.class}">${status.text}</span>
+		            <br>
+		            <small style="color:#ccc;">[生データ: ${rawStatus === undefined ? '未定義' : rawStatus}]</small></td>
+		    `;
+	            tbody.appendChild(row);
+	        });
+	    } catch (error) {
+	        alert('データの取得に失敗いたしましたわ: ' + error.message);
+	    } finally {
+	        setTimeout(() => {
+	            icon.classList.remove('fa-spin');
+	            container.classList.remove('loading');
+	        }, 300);
+	    }
+	}
+
 
     // action列の値「出席」「欠席」に対応
     function getAttendanceMark(status) {
-        if (!status) return { text: '－', class: 'none' };
-        
-        switch(status) {
-            case '出席':
-                return { text: '◯', class: 'present' };
-            case '欠席':
-                return { text: '×', class: 'absent' };
-            default:
-                return { text: '－', class: 'none' };
-        }
+    // データが全く届いていない、またはnullの場合は「－」
+    if (status === undefined || status === null || status === '') {
+        return { text: '－', class: 'none' };
     }
+    
+    // 文字列の余計な空白を排除
+    const s = String(status).trim();
+    
+    switch(s) {
+        case '出席':
+            return { text: '◯', class: 'present' };
+        case '欠席':
+            return { text: '×', class: 'absent' };
+        default:
+            return { text: '－', class: 'none' };
+    }
+}
 </script>
+
 </body>
 </html>
