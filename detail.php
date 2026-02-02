@@ -45,7 +45,6 @@ if (isset($_GET['ajax'])) {
 
 // ---------------------------------------------------------
 // モード2: データが存在する日付一覧を取得 (?action=get_dates)
-// ★ここが新機能でございます
 // ---------------------------------------------------------
 if (isset($_GET['action']) && $_GET['action'] === 'get_dates') {
     header('Content-Type: application/json; charset=utf-8');
@@ -200,7 +199,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_dates') {
         });
     }
 
-    // ★カレンダーとグラフの初期化・更新
+    // カレンダーとグラフの初期化・更新
     async function initCalendarAndCharts() {
         const roomId = document.getElementById('room_select').value;
         
@@ -218,8 +217,8 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_dates') {
             datePicker = flatpickr("#date_select", {
                 locale: "ja",             // 日本語化
                 defaultDate: latestDate,  // 初期値は最新のデータ日
-                enable: availableDates,   // ★ここが魔法！リストにある日だけ有効化
-                disableMobile: true,      // モバイルでもこのUIを強制（スマホ標準だと無効化が効かないことがあるため）
+                enable: availableDates,   // リストにある日だけ有効化
+                disableMobile: true,      // モバイルでもこのUIを強制
                 onChange: function(selectedDates, dateStr, instance) {
                     updateAll(dateStr);   // 日付変更時にグラフ更新
                 }
