@@ -211,9 +211,9 @@ $total_classes = 15;
                     </td>
                     <td>
                         <?php if ($is_present_today): ?>
-                            <span class="status-icon status-ok">○</span>
+                            <span class="status-icon status-ok" style="font-size: 2.5em;">○</span>
                         <?php else: ?>
-                            <span class="status-icon status-ng">×</span>
+                            <span class="status-icon status-ng" style="font-size: 2.5em;">×</span>
                         <?php endif; ?>
                     </td>
                 </tr>
