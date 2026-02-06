@@ -37,19 +37,17 @@ $current_ip = gethostbyname($remote_addr);
 $is_admin = in_array($current_ip, $admin_ips);
 
 // 特定学生の個別アクセス判定
-$students = $all_students; // デフォルトは全員表示（管理者の場合）
+$students = $all_students; 
 $is_student_access = false;
 
 foreach ($all_students as $student) {
     if ($current_ip === $student['assigned_ip']) {
-        // 特定IPからのアクセスの場合は、その学生のデータのみに絞り込む
         $students = [$student];
         $is_student_access = true;
         break;
     }
 }
 
-// アクセス許可判定（管理者、または特定学生リストに含まれるIPならOK）
 $is_access_denied = !($is_admin || $is_student_access);
 
 // ------------------------------------------
@@ -117,7 +115,6 @@ $total_classes = 15;
         :root { --primary-blue: #007bff; --primary-hover: #0056b3; --bg-light: #f4f7f6; --text-dark: #333; --danger-red: #dc3545; --success-green: #28a745; }
         body { font-family: sans-serif; background-color: var(--bg-light); color: var(--text-dark); margin: 0; padding: 0; position: relative; }
         
-        /* 右上のIP表示バッジ */
         .ip-indicator {
             position: absolute;
             top: 10px;
@@ -151,12 +148,31 @@ $total_classes = 15;
 
         .container { max-width: 900px; margin: 40px auto 20px auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         h2.page-title { color: var(--primary-blue); font-size: 24px; margin-bottom: 25px; display: flex; align-items: center; gap: 10px; }
-        .control-panel { background-color: #f8f9fa; padding: 20px; border-radius: 6px; border: 1px solid #e9ecef; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; margin-bottom: 20px; }
+        
+        .control-panel { background-color: #f8f9fa; padding: 20px; border-radius: 6px; border: 1px solid #e9ecef; display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; margin-bottom: 20px; }
         .form-group { display: flex; flex-direction: column; }
         .form-group label { font-size: 12px; font-weight: bold; color: #666; margin-bottom: 5px; }
-        .form-control { padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; font-size: 14px; }
+        .form-control { padding: 8px 12px; border: 1px solid #ced4da; border-radius: 4px; font-size: 14px; height: 38px; box-sizing: border-box; }
+        
+        .refresh-btn {
+            background-color: var(--primary-blue);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            min-width: 120px;
+        }
+        .refresh-btn:hover { background-color: var(--primary-hover); }
+        .refresh-btn:active { transform: translateY(1px); }
+
         .class-banner { background: linear-gradient(to right, #667eea, #764ba2); color: white; padding: 15px 20px; border-radius: 6px; margin-bottom: 20px; }
         .class-banner h3 { margin: 0 0 5px 0; font-size: 18px; }
+        
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         th { background-color: #f8f9fa; padding: 15px; border-bottom: 2px solid #dee2e6; }
         td { padding: 15px; border-bottom: 1px solid #dee2e6; text-align: center; }
@@ -187,22 +203,23 @@ $total_classes = 15;
 <div class="container <?= $is_access_denied ? 'access-restricted' : '' ?>">
     <h2 class="page-title">
         <i class="fa-regular fa-calendar-check"></i> 単位判定・出席管理システム
-        <?php if ($is_student_access): ?> (学生用照会) <?php endif; ?>
     </h2>
 
     <?php if ($error_message): ?>
         <div style="color: red; margin-bottom: 20px;"><?= htmlspecialchars($error_message) ?></div>
     <?php endif; ?>
 
-    <form method="GET" action="" class="control-panel">
+    <form id="attendanceForm" method="GET" action="" class="control-panel">
         <div class="form-group">
             <label for="date">確認日を選択</label>
-            <input type="date" id="date" name="date" class="form-control" value="<?= htmlspecialchars($target_date) ?>" onchange="filterScheduleByDate(); this.form.submit();">
+            <input type="date" id="date" name="date" class="form-control" 
+                   value="<?= htmlspecialchars($target_date) ?>" 
+                   onchange="filterScheduleByDate(); this.form.submit();">
         </div>
 
         <div class="form-group" style="flex-grow: 1;">
             <label for="schedule_id">対象授業</label>
-            <select id="schedule_id" name="schedule_id" class="form-control" onchange="this.form.submit()">
+            <select id="schedule_id" name="schedule_id" class="form-control" onchange="this.form.submit();">
                 <option value="" data-day="all">-- 授業を選択してください --</option>
                 <?php foreach ($schedule_list as $sch): ?>
                     <option value="<?= $sch['id'] ?>" data-day="<?= $sch['day_of_week'] ?>" <?= $target_schedule_id == $sch['id'] ? 'selected' : '' ?>>
@@ -210,6 +227,13 @@ $total_classes = 15;
                     </option>
                 <?php endforeach; ?>
             </select>
+        </div>
+
+        <div class="form-group">
+            <label>&nbsp;</label>
+            <button type="submit" class="form-control refresh-btn">
+                <i class="fa-solid fa-rotate"></i> 状況を更新
+            </button>
         </div>
     </form>
 
@@ -259,7 +283,7 @@ $total_classes = 15;
         </table>
     <?php else: ?>
         <div class="no-selection">
-            <i class="fa-solid fa-arrow-up"></i><br>授業を選択すると出席状況が表示されます
+            <i class="fa-solid fa-arrow-up"></i><br>授業を選択すると自動で出席状況が表示されます
         </div>
     <?php endif; ?>
 
@@ -276,13 +300,14 @@ function filterScheduleByDate() {
     const select = document.getElementById('schedule_id');
     const options = select.querySelectorAll('option');
     if (!dateInput.value) return;
+    
     const dateObj = new Date(dateInput.value);
     const jsDay = dateObj.getDay(); 
     
     options.forEach(opt => {
         if (opt.getAttribute('data-day') === 'all') return;
         const dbDay = parseInt(opt.getAttribute('data-day'));
-        let isMatch = (jsDay === 0) ? (dbDay === 7 || dbDay === 0) : (dbDay === jsDay);
+        let isMatch = (jsDay === 0) ? (dbDay === 7) : (dbDay === jsDay);
         
         if (isMatch) {
             opt.style.display = "";
@@ -290,9 +315,12 @@ function filterScheduleByDate() {
         } else {
             opt.style.display = "none";
             opt.disabled = true;
+            // 非表示にする曜日の授業が選択されていたらリセット
+            if (opt.selected) select.value = "";
         }
     });
 }
+// 読み込み時にも曜日フィルタを実行（リロード後の整合性のため）
 window.addEventListener('load', filterScheduleByDate);
 </script>
 

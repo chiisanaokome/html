@@ -1,16 +1,18 @@
-﻿<?php
-// データベース接続設定
+<?php
+// データベース接続設定（PostgreSQL）
 $host = '10.100.56.163';
 $dbname = 'group3';
 $username = 'gthree';
 $password = 'Gthree';
+$port = '5432'; // PostgreSQLのデフォルトポート
 
 // AJAX APIリクエストの処理
 if (isset($_GET['api']) && $_GET['api'] === 'attendance') {
     header('Content-Type: application/json; charset=utf-8');
     
     try {
-        $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
+        // PostgreSQL用の接続文字列
+        $pdo = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $username, $password);
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         
         $room_id = isset($_GET['room_id']) ? (int)$_GET['room_id'] : 0;
@@ -22,26 +24,15 @@ if (isset($_GET['api']) && $_GET['api'] === 'attendance') {
             exit;
         }
         
-        // デバッグ用：全データを確認
-        $debug_sql = "SELECT user_id, room_id, period, logged_at, action, DATE(logged_at) as log_date 
-                      FROM attendance_logs 
-                      WHERE room_id = :room_id 
-                      AND period = :period 
-                      ORDER BY logged_at DESC 
-                      LIMIT 10";
-        $debug_stmt = $pdo->prepare($debug_sql);
-        $debug_stmt->bindParam(':room_id', $room_id, PDO::PARAM_INT);
-        $debug_stmt->bindParam(':period', $period, PDO::PARAM_INT);
-        $debug_stmt->execute();
-        $debug_data = $debug_stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // 出席している学生数を取得
+        // 出席している学生数を取得（PostgreSQL用のクエリ）
+        // logged_at::date でタイムスタンプから日付を取得
+        // TRIM(action) でスペースを削除
         $sql = "SELECT COUNT(DISTINCT user_id) as count 
                 FROM attendance_logs 
                 WHERE room_id = :room_id 
                 AND period = :period 
-                AND DATE(logged_at) = :target_date 
-                AND action = '出席'";
+                AND logged_at::date = :target_date::date 
+                AND TRIM(action) = '出席'";
         
         $stmt = $pdo->prepare($sql);
         $stmt->bindParam(':room_id', $room_id, PDO::PARAM_INT);
@@ -55,8 +46,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'attendance') {
             'count' => (int)$result['count'],
             'room_id' => $room_id,
             'period' => $period,
-            'date' => $target_date,
-            'debug' => $debug_data  // デバッグ情報を追加
+            'date' => $target_date
         ]);
         
     } catch (PDOException $e) {
@@ -104,11 +94,6 @@ if (isset($_GET['api']) && $_GET['api'] === 'attendance') {
         .btn { padding: 14px 30px; border-radius: 8px; border: none; color: white; cursor: pointer; font-weight: bold; text-decoration: none; display: flex; align-items: center; gap: 8px; }
         .btn-gray { background-color: #607d8b; }
         .btn-blue { background-color: #007bff; }
-        
-        /* デバッグ情報用スタイル */
-        .debug-panel { background-color: #f8f9fa; margin: 25px; padding: 20px; border-radius: 10px; border-left: 6px solid #17a2b8; font-family: monospace; font-size: 0.85em; }
-        .debug-title { color: #17a2b8; font-weight: bold; margin-bottom: 10px; }
-        .debug-info { background: white; padding: 10px; border-radius: 5px; margin-top: 10px; white-space: pre-wrap; }
     </style>
 </head>
 <body>
@@ -116,7 +101,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'attendance') {
 <div class="container">
     <div class="header">
         <a href="#" class="top-btn"><i class="fas fa-home"></i> トップページ</a>
-        <div class="sub-title">見えない環境を可視化する ?学校スマート管理システム?（グループ3）</div>
+        <div class="sub-title">見えない環境を可視化する 〜学校スマート管理システム〜（グループ3）</div>
         <div class="main-date" id="current-clock">----/--/--(--) --:--</div>
     </div>
 
@@ -133,14 +118,6 @@ if (isset($_GET['api']) && $_GET['api'] === 'attendance') {
             <div class="summary-label">最終更新</div>
             <div id="last-update-hms" class="summary-value" style="color: #7f8c8d;">--時--分--秒</div>
         </div>
-    </div>
-
-    <!-- デバッグパネル -->
-    <div class="debug-panel" id="debug-panel">
-        <div class="debug-title"><i class="fas fa-bug"></i> デバッグ情報</div>
-        <div>現在の時限: <span id="debug-period" style="font-weight:bold;">--</span></div>
-        <div>取得中の日付: <span id="debug-date" style="font-weight:bold;">--</span></div>
-        <div class="debug-info" id="debug-info">APIレスポンス待機中...</div>
     </div>
 
     <div class="alert-section" id="alert-box">
@@ -189,22 +166,16 @@ function getCurrentPeriod() {
 
 // 出席人数を取得する関数
 async function fetchAttendanceCount(roomId, period) {
-    if (!period) return { count: 0, debug: 'period is null' };
+    if (!period) return 0;
     
     try {
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD形式
-        const url = `?api=attendance&room_id=${roomId}&period=${period}&date=${today}`;
-        console.log('APIリクエスト:', url);
-        
-        const res = await fetch(url);
+        const res = await fetch(`?api=attendance&room_id=${roomId}&period=${period}&date=${today}`);
         const data = await res.json();
-        
-        console.log(`Room ${roomId}, Period ${period} レスポンス:`, data);
-        
-        return data;
+        return data.count || 0;
     } catch (e) {
         console.error('出席データ取得エラー:', e);
-        return { count: 0, error: e.message };
+        return 0;
     }
 }
 
@@ -214,13 +185,6 @@ async function fetchLatestData() {
     let usedRooms = 0;
     let newestTime = null;
     const currentPeriod = getCurrentPeriod();
-    const today = new Date().toISOString().split('T')[0];
-    
-    // デバッグ情報を更新
-    document.getElementById('debug-period').innerText = currentPeriod || '授業時間外';
-    document.getElementById('debug-date').innerText = today;
-    
-    let debugMessages = [];
 
     for (let id of roomIds) {
         try {
@@ -237,17 +201,8 @@ async function fetchLatestData() {
 
                 // 在室人数を取得
                 let attendanceCount = 0;
-                let attendanceData = null;
                 if (currentPeriod) {
-                    attendanceData = await fetchAttendanceCount(id, currentPeriod);
-                    attendanceCount = attendanceData.count || 0;
-                    
-                    debugMessages.push(`教室${id} (0-${id === 1 ? '502' : id === 2 ? '504' : '506'}): ${attendanceCount}名`);
-                    if (attendanceData.debug && attendanceData.debug.length > 0) {
-                        debugMessages.push(`  最近のログ: ${JSON.stringify(attendanceData.debug[0])}`);
-                    }
-                } else {
-                    debugMessages.push(`教室${id}: 授業時間外`);
+                    attendanceCount = await fetchAttendanceCount(id, currentPeriod);
                 }
 
                 // 各種データを表示
@@ -267,13 +222,9 @@ async function fetchLatestData() {
                 }
             }
         } catch (e) { 
-            console.error('センサーデータ取得エラー:', e);
-            debugMessages.push(`教室${id}: エラー - ${e.message}`);
+            console.error('センサーデータ取得エラー:', e); 
         }
     }
-    
-    // デバッグ情報を表示
-    document.getElementById('debug-info').innerText = debugMessages.join('\n');
 
     document.getElementById('used-rooms-count').innerText = `${usedRooms} / 3`;
     document.getElementById('alert-count').innerText = `${alerts.length} 件`;

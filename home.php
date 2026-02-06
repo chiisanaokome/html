@@ -1,3 +1,63 @@
+<?php
+// データベース接続設定（PostgreSQL）
+$host = '10.100.56.163';
+$dbname = 'group3';
+$username = 'gthree';
+$password = 'Gthree';
+$port = '5432'; // PostgreSQLのデフォルトポート
+
+// AJAX APIリクエストの処理
+if (isset($_GET['api']) && $_GET['api'] === 'attendance') {
+    header('Content-Type: application/json; charset=utf-8');
+    
+    try {
+        // PostgreSQL用の接続文字列
+        $pdo = new PDO("pgsql:host=$host;port=$port;dbname=$dbname", $username, $password);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        
+        $room_id = isset($_GET['room_id']) ? (int)$_GET['room_id'] : 0;
+        $period = isset($_GET['period']) ? (int)$_GET['period'] : 0;
+        $target_date = isset($_GET['date']) ? $_GET['date'] : date('Y-m-d');
+        
+        if ($room_id <= 0 || $period <= 0) {
+            echo json_encode(['count' => 0, 'error' => 'Invalid parameters']);
+            exit;
+        }
+        
+        // 出席している学生数を取得（PostgreSQL用のクエリ）
+        // logged_at::date でタイムスタンプから日付を取得
+        // TRIM(action) でスペースを削除
+        $sql = "SELECT COUNT(DISTINCT user_id) as count 
+                FROM attendance_logs 
+                WHERE room_id = :room_id 
+                AND period = :period 
+                AND logged_at::date = :target_date::date 
+                AND TRIM(action) = '出席'";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindParam(':room_id', $room_id, PDO::PARAM_INT);
+        $stmt->bindParam(':period', $period, PDO::PARAM_INT);
+        $stmt->bindParam(':target_date', $target_date, PDO::PARAM_STR);
+        $stmt->execute();
+        
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        echo json_encode([
+            'count' => (int)$result['count'],
+            'room_id' => $room_id,
+            'period' => $period,
+            'date' => $target_date
+        ]);
+        
+    } catch (PDOException $e) {
+        echo json_encode([
+            'count' => 0,
+            'error' => 'Database error: ' . $e->getMessage()
+        ]);
+    }
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -14,7 +74,6 @@
         .sub-title { font-size: 0.85em; color: #666; margin-bottom: 8px; }
         .main-date { font-size: 2em; font-weight: bold; margin: 0; color: #2c3e50; }
 
-        /* サマリー：平均CO2を削除 */
         .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #eef; border-bottom: 1px solid #eef; }
         .summary-item { padding: 20px; text-align: center; border-right: 1px solid #eef; }
         .summary-label { font-size: 0.85em; color: #888; margin-bottom: 8px; font-weight: bold; }
@@ -42,7 +101,7 @@
 <div class="container">
     <div class="header">
         <a href="#" class="top-btn"><i class="fas fa-home"></i> トップページ</a>
-        <div class="sub-title">見えない環境を可視化する 〜学校スマート管理システム〜（グループ3）</div>
+        <div class="sub-title">見えない環境を可視化する ?学校スマート管理システム?（グループ3）</div>
         <div class="main-date" id="current-clock">----/--/--(--) --:--</div>
     </div>
 
@@ -85,11 +144,47 @@ function updateClock() {
     document.getElementById('current-clock').innerText = `${now.getFullYear()}/${(now.getMonth()+1)}/${now.getDate()}(${days[now.getDay()]}) ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
 }
 
+// 現在の時限を判定する関数
+function getCurrentPeriod() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const time = hours * 60 + minutes; // 分単位に変換
+
+    // 8:50~10:30 → 1限
+    if (time >= 530 && time < 630) return 1;
+    // 10:35~12:15 → 2限
+    if (time >= 635 && time < 735) return 2;
+    // 13:00~14:40 → 3限
+    if (time >= 780 && time < 880) return 3;
+    // 14:45~16:25 → 4限
+    if (time >= 885 && time < 985) return 4;
+    
+    // 授業時間外
+    return null;
+}
+
+// 出席人数を取得する関数
+async function fetchAttendanceCount(roomId, period) {
+    if (!period) return 0;
+    
+    try {
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD形式
+        const res = await fetch(`?api=attendance&room_id=${roomId}&period=${period}&date=${today}`);
+        const data = await res.json();
+        return data.count || 0;
+    } catch (e) {
+        console.error('出席データ取得エラー:', e);
+        return 0;
+    }
+}
+
 async function fetchLatestData() {
     const roomIds = [1, 2, 3];
     let alerts = [];
     let usedRooms = 0;
     let newestTime = null;
+    const currentPeriod = getCurrentPeriod();
 
     for (let id of roomIds) {
         try {
@@ -101,19 +196,40 @@ async function fetchLatestData() {
 
                 const lux = parseInt(r.illuminance);
                 const co2 = parseInt(r.co2);
-                const isUsed = lux > 100;
+
+                // 在室人数を取得
+                let attendanceCount = 0;
+                if (currentPeriod) {
+                    attendanceCount = await fetchAttendanceCount(id, currentPeriod);
+                }
+
+                // 使用判定：在室人数で判定
+                const isUsed = attendanceCount > 0;
                 if (isUsed) usedRooms++;
 
+                // 照明の状態
+                const lightOn = lux > 500;
+
+                // 各種データを表示
+                document.getElementById(`p-${id}`).innerText = `在室：${attendanceCount}名`;
                 document.getElementById(`t-${id}`).innerText = `${r.temperature}℃ / ${r.humidity}%`;
                 document.getElementById(`c-${id}`).innerText = `CO2: ${co2} ppm`;
                 document.getElementById(`card-${id}`).className = isUsed ? 'room-card card-red' : 'room-card card-green';
                 document.getElementById(`st-${id}`).innerText = isUsed ? '■ 使用中' : '□ 未使用';
-                document.getElementById(`l-${id}`).innerText = isUsed ? '照明: 点灯中' : '照明: 消灯';
+                document.getElementById(`l-${id}`).innerText = lightOn ? '照明: 点灯中' : '照明: 消灯';
 
-                if (co2 > 1000) alerts.push(`教室 ${r.room_name} : CO2濃度が高いため換気をしてください`);
-                if (id === 2 && isUsed) alerts.push(`教室 ${r.room_name} : 在室0名で電源が点灯しています`);
+                // 警告チェック
+                if (co2 > 1000) {
+                    alerts.push(`教室 ${r.room_name} : CO2濃度が高いため換気をしてください`);
+                }
+                // 在室0名なのに照明が点いている場合の警告
+                if (id === 2 && lightOn && attendanceCount === 0) {
+                    alerts.push(`教室 ${r.room_name} : 在室0名で照明が点灯しています`);
+                }
             }
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error('センサーデータ取得エラー:', e); 
+        }
     }
 
     document.getElementById('used-rooms-count').innerText = `${usedRooms} / 3`;
