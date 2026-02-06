@@ -2,10 +2,6 @@
 // ==========================================
 // 1. 設定・データベース接続・アクセス制限
 // ==========================================
-
-// --- 追加機能: IP表示バッジの切り替え (true: 表示 / false: 非表示) ---
-$show_ip_badge = true; 
-
 $host = '10.100.56.163';
 $dbname = 'group3';
 $user = 'gthree';
@@ -13,7 +9,7 @@ $pass = 'Gthree';
 
 date_default_timezone_set('Asia/Tokyo');
 
-// 管理者IPの定義
+// 管理者IPの定義（アクセスを許可するリスト）
 $admin_ips = [
     '10.100.56.7',
     '10.100.56.8',
@@ -22,36 +18,13 @@ $admin_ips = [
     '10.100.56.20'
 ];
 
-// 学生データの定義（マスター）
-$all_students = [
-    ['id' => 'T207', 'name' => '田所たろう', 'assigned_ip' => '10.100.56.207', 'past_attendance' => 0],
-    ['id' => 'T208', 'name' => '小川おたろう', 'assigned_ip' => '10.100.56.208', 'past_attendance' => 0],
-    ['id' => 'T209', 'name' => '近松<Xx_a.k.a_xX>門左衛門', 'assigned_ip' => '10.100.56.209', 'past_attendance' => 0],
-];
-
-// --- IPチェックロジック ---
+// --- DNS逆引き対策済み IPチェックロジック ---
 $remote_addr = $_SERVER['REMOTE_ADDR'];
-$current_ip = gethostbyname($remote_addr); 
+$current_ip = gethostbyname($remote_addr); // ホスト名の場合にIPへ変換
 
-// 管理者判定
+// 判定：現在のIPが管理者リストに含まれていれば許可
 $is_admin = in_array($current_ip, $admin_ips);
-
-// 特定学生の個別アクセス判定
-$students = $all_students; // デフォルトは全員表示（管理者の場合）
-$is_student_access = false;
-
-foreach ($all_students as $student) {
-    if ($current_ip === $student['assigned_ip']) {
-        // 特定IPからのアクセスの場合は、その学生のデータのみに絞り込む
-        $students = [$student];
-        $is_student_access = true;
-        break;
-    }
-}
-
-// アクセス許可判定（管理者、または特定学生リストに含まれるIPならOK）
-$is_access_denied = !($is_admin || $is_student_access);
-
+$is_access_denied = !$is_admin;
 // ------------------------------------------
 
 $target_date = $_GET['date'] ?? date('Y-m-d');
@@ -60,6 +33,13 @@ $target_schedule_id = $_GET['schedule_id'] ?? null;
 $target_period = "-";
 $target_room_id = "-";
 $target_subject_name = "";
+
+// 学生データの定義
+$students = [
+    ['id' => 'T207', 'name' => '田所たろう', 'assigned_ip' => '10.100.56.207', 'past_attendance' => 0],
+    ['id' => 'T208', 'name' => '小川おたろう', 'assigned_ip' => '10.100.56.208', 'past_attendance' => 0],
+    ['id' => 'T209', 'name' => '近松<Xx_a.k.a_xX>門左衛門', 'assigned_ip' => '10.100.56.209', 'past_attendance' => 0],
+];
 
 $attended_ips = [];
 $schedule_list = [];
@@ -134,6 +114,7 @@ $total_classes = 15;
         .ip-status-ok { color: var(--primary-blue); }
         .ip-status-ng { color: var(--danger-red); }
 
+        /* 警告帯 */
         .alert-banner {
             background-color: var(--danger-red);
             color: white;
@@ -147,6 +128,7 @@ $total_classes = 15;
         }
         .alert-banner a { color: white; text-decoration: underline; margin-left: 15px; font-size: 0.9em; }
 
+        /* アクセス制限スタイル */
         .access-restricted { opacity: 0.5; pointer-events: none; user-select: none; filter: grayscale(50%); }
 
         .container { max-width: 900px; margin: 40px auto 20px auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
@@ -170,11 +152,9 @@ $total_classes = 15;
 </head>
 <body>
 
-<?php if ($show_ip_badge): ?>
 <div class="ip-indicator">
-    Your IP: <span class="<?= ($is_admin || $is_student_access) ? 'ip-status-ok' : 'ip-status-ng' ?>"><?= htmlspecialchars($current_ip) ?></span>
+    Your IP: <span class="<?= $is_admin ? 'ip-status-ok' : 'ip-status-ng' ?>"><?= htmlspecialchars($current_ip) ?></span>
 </div>
-<?php endif; ?>
 
 <?php if ($is_access_denied): ?>
     <div class="alert-banner">
@@ -187,7 +167,6 @@ $total_classes = 15;
 <div class="container <?= $is_access_denied ? 'access-restricted' : '' ?>">
     <h2 class="page-title">
         <i class="fa-regular fa-calendar-check"></i> 単位判定・出席管理システム
-        <?php if ($is_student_access): ?> (学生用照会) <?php endif; ?>
     </h2>
 
     <?php if ($error_message): ?>

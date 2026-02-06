@@ -2,10 +2,6 @@
 // ==========================================
 // 1. 設定・データベース接続・アクセス制限
 // ==========================================
-
-// --- 追加機能: IP表示バッジの切り替え (true: 表示 / false: 非表示) ---
-$show_ip_badge = true; 
-
 $host = '10.100.56.163';
 $dbname = 'group3';
 $user = 'gthree';
@@ -13,45 +9,23 @@ $pass = 'Gthree';
 
 date_default_timezone_set('Asia/Tokyo');
 
-// 管理者IPの定義
+// 管理者IPの定義（アクセスを許可するリスト）
 $admin_ips = [
     '10.100.56.7',
     '10.100.56.8',
     '10.100.56.13',
     '10.100.56.14',
-    '10.100.56.20'
+    '10.100.56.20',
+    '10.100.200.2'
 ];
 
-// 学生データの定義（マスター）
-$all_students = [
-    ['id' => 'T207', 'name' => '田所たろう', 'assigned_ip' => '10.100.56.207', 'past_attendance' => 0],
-    ['id' => 'T208', 'name' => '小川おたろう', 'assigned_ip' => '10.100.56.208', 'past_attendance' => 0],
-    ['id' => 'T209', 'name' => '近松<Xx_a.k.a_xX>門左衛門', 'assigned_ip' => '10.100.56.209', 'past_attendance' => 0],
-];
-
-// --- IPチェックロジック ---
+// --- DNS逆引き対策済み IPチェックロジック ---
 $remote_addr = $_SERVER['REMOTE_ADDR'];
-$current_ip = gethostbyname($remote_addr); 
+// ホスト名が返ってきた場合にIPアドレスに変換
+$current_ip = gethostbyname($remote_addr);
 
-// 管理者判定
-$is_admin = in_array($current_ip, $admin_ips);
-
-// 特定学生の個別アクセス判定
-$students = $all_students; // デフォルトは全員表示（管理者の場合）
-$is_student_access = false;
-
-foreach ($all_students as $student) {
-    if ($current_ip === $student['assigned_ip']) {
-        // 特定IPからのアクセスの場合は、その学生のデータのみに絞り込む
-        $students = [$student];
-        $is_student_access = true;
-        break;
-    }
-}
-
-// アクセス許可判定（管理者、または特定学生リストに含まれるIPならOK）
-$is_access_denied = !($is_admin || $is_student_access);
-
+// 判定：現在のIPが管理者リストに含まれていなければアクセス拒否
+$is_access_denied = !in_array($current_ip, $admin_ips);
 // ------------------------------------------
 
 $target_date = $_GET['date'] ?? date('Y-m-d');
@@ -61,6 +35,13 @@ $target_period = "-";
 $target_room_id = "-";
 $target_subject_name = "";
 
+// 学生データの定義
+$students = [
+    ['id' => 'T207', 'name' => '田所たろう', 'assigned_ip' => '10.100.56.207', 'past_attendance' => 0],
+    ['id' => 'T208', 'name' => '小川おたろう', 'assigned_ip' => '10.100.56.208', 'past_attendance' => 0],
+    ['id' => 'T209', 'name' => '近松<Xx_a.k.a_xX>門左衛門', 'assigned_ip' => '10.100.56.209', 'past_attendance' => 0],
+];
+
 $attended_ips = [];
 $schedule_list = [];
 $error_message = "";
@@ -69,6 +50,7 @@ try {
     $dsn = "pgsql:host=$host;dbname=$dbname";
     $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 
+    // A. 授業リスト取得
     $sql_sch = "SELECT s.id, s.period, s.subject_name, s.room_id, s.day_of_week, r.name as room_name 
                 FROM schedules s
                 JOIN rooms r ON s.room_id = r.id
@@ -76,6 +58,7 @@ try {
     $stmt_sch = $pdo->query($sql_sch);
     $schedule_list = $stmt_sch->fetchAll(PDO::FETCH_ASSOC);
 
+    // B. 選択された授業の情報を特定
     if ($target_schedule_id) {
         foreach ($schedule_list as $sch) {
             if ($sch['id'] == $target_schedule_id) {
@@ -86,6 +69,7 @@ try {
             }
         }
 
+        // C. 出席データの取得
         $sql = "SELECT user_id FROM attendance_logs 
                 WHERE room_id = :room_id 
                 AND period = :period 
@@ -100,6 +84,7 @@ try {
         ]);
         $attended_ips = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
+
 } catch (PDOException $e) {
     $error_message = "データベース接続エラー: " . $e->getMessage();
 }
@@ -115,25 +100,9 @@ $total_classes = 15;
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { --primary-blue: #007bff; --primary-hover: #0056b3; --bg-light: #f4f7f6; --text-dark: #333; --danger-red: #dc3545; --success-green: #28a745; }
-        body { font-family: sans-serif; background-color: var(--bg-light); color: var(--text-dark); margin: 0; padding: 0; position: relative; }
+        body { font-family: sans-serif; background-color: var(--bg-light); color: var(--text-dark); margin: 0; padding: 0; }
         
-        /* 右上のIP表示バッジ */
-        .ip-indicator {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            font-size: 11px;
-            padding: 4px 10px;
-            border-radius: 4px;
-            background: #fff;
-            border: 1px solid #ddd;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            z-index: 10000;
-        }
-        .ip-indicator span { font-weight: bold; margin-left: 5px; }
-        .ip-status-ok { color: var(--primary-blue); }
-        .ip-status-ng { color: var(--danger-red); }
-
+        /* 警告帯のスタイル */
         .alert-banner {
             background-color: var(--danger-red);
             color: white;
@@ -145,11 +114,22 @@ $total_classes = 15;
             z-index: 9999;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
         }
-        .alert-banner a { color: white; text-decoration: underline; margin-left: 15px; font-size: 0.9em; }
+        .alert-banner a {
+            color: white;
+            text-decoration: underline;
+            margin-left: 15px;
+            font-size: 0.9em;
+        }
 
-        .access-restricted { opacity: 0.5; pointer-events: none; user-select: none; filter: grayscale(50%); }
+        /* アクセス制限時のコンテナスタイル */
+        .access-restricted {
+            opacity: 0.5;
+            pointer-events: none;
+            user-select: none;
+            filter: grayscale(50%);
+        }
 
-        .container { max-width: 900px; margin: 40px auto 20px auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .container { max-width: 900px; margin: 20px auto; background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         h2.page-title { color: var(--primary-blue); font-size: 24px; margin-bottom: 25px; display: flex; align-items: center; gap: 10px; }
         .control-panel { background-color: #f8f9fa; padding: 20px; border-radius: 6px; border: 1px solid #e9ecef; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-end; margin-bottom: 20px; }
         .form-group { display: flex; flex-direction: column; }
@@ -170,12 +150,6 @@ $total_classes = 15;
 </head>
 <body>
 
-<?php if ($show_ip_badge): ?>
-<div class="ip-indicator">
-    Your IP: <span class="<?= ($is_admin || $is_student_access) ? 'ip-status-ok' : 'ip-status-ng' ?>"><?= htmlspecialchars($current_ip) ?></span>
-</div>
-<?php endif; ?>
-
 <?php if ($is_access_denied): ?>
     <div class="alert-banner">
         <i class="fa-solid fa-circle-exclamation"></i> 
@@ -187,7 +161,6 @@ $total_classes = 15;
 <div class="container <?= $is_access_denied ? 'access-restricted' : '' ?>">
     <h2 class="page-title">
         <i class="fa-regular fa-calendar-check"></i> 単位判定・出席管理システム
-        <?php if ($is_student_access): ?> (学生用照会) <?php endif; ?>
     </h2>
 
     <?php if ($error_message): ?>
