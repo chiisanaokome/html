@@ -101,7 +101,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'attendance') {
 <div class="container">
     <div class="header">
         <a href="#" class="top-btn"><i class="fas fa-home"></i> トップページ</a>
-        <div class="sub-title">見えない環境を可視化する ?学校スマート管理システム?（グループ3）</div>
+        <div class="sub-title">見えない環境を可視化する 学校スマート管理システム（グループ3）</div>
         <div class="main-date" id="current-clock">----/--/--(--) --:--</div>
     </div>
 
