@@ -188,7 +188,7 @@ $total_classes = 15;
 
 <?php if ($show_ip_badge): ?>
 <div class="ip-indicator">
-    Your IP: <span class="<?= ($is_admin || $is_student_access) ? 'ip-status-ok' : 'ip-status-ng' ?>"><?= htmlspecialchars($current_ip) ?></span>
+    (Debug) Your IP: <span class="<?= ($is_admin || $is_student_access) ? 'ip-status-ok' : 'ip-status-ng' ?>"><?= htmlspecialchars($current_ip) ?></span>
 </div>
 <?php endif; ?>
 
