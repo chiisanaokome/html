@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 //qr_create.php
 header("Content-Type: application/json; charset=UTF-8");
 
@@ -49,7 +49,7 @@ if ($currentTime >= '08:50' && $currentTime <= '10:30') {
 // 期限切れ or 無ければ新規生成
 if ($token === null) {
     $token  = bin2hex(random_bytes(2)); // 4文字
-    $expiry = $now + 300;               // 5分
+    $expiry = $now + 30;               // 30秒
 
     file_put_contents(
         $TOKEN_FILE,
