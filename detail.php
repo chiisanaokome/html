@@ -1,9 +1,5 @@
 <?php
-// =========================================================
-//  SERVER SIDE (PHP)
-// =========================================================
-
-// DB接続設定
+// SERVER SIDE (PHP) - 既存のロジックを維持
 $host = '10.100.56.163';
 $db   = 'group3';       
 $user = 'gthree';       
@@ -11,63 +7,30 @@ $pass = 'Gthree';
 $port = '5432';
 $dsn  = "pgsql:host=$host;port=$port;dbname=$db";
 
-// ---------------------------------------------------------
-// モード1: グラフ用データ取得 (?ajax=1)
-// ---------------------------------------------------------
 if (isset($_GET['ajax'])) {
     header('Content-Type: application/json; charset=utf-8');
     try {
         $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
-        
         $roomId = $_GET['room_id'] ?? 1;
         $date   = $_GET['date'] ?? date('Y-m-d');
-
-        $sql = "SELECT measured_at, temperature, humidity, co2, illuminance
-                FROM sensor_logs
-                WHERE room_id = :room_id
-                AND measured_at >= :start_date 
-                AND measured_at <  :end_date
-                ORDER BY measured_at ASC";
-
+        $sql = "SELECT measured_at, temperature, humidity, co2, illuminance FROM sensor_logs WHERE room_id = :room_id AND measured_at >= :start_date AND measured_at < :end_date ORDER BY measured_at ASC";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([
-            'room_id' => $roomId,
-            'start_date' => $date . ' 00:00:00',
-            'end_date'   => date('Y-m-d', strtotime($date . ' +1 day')) . ' 00:00:00'
-        ]);
+        $stmt->execute(['room_id' => $roomId, 'start_date' => $date . ' 00:00:00', 'end_date' => date('Y-m-d', strtotime($date . ' +1 day')) . ' 00:00:00']);
         echo json_encode($stmt->fetchAll());
-    } catch (PDOException $e) {
-        http_response_code(500);
-        echo json_encode(['error' => $e->getMessage()]);
-    }
+    } catch (PDOException $e) { http_response_code(500); echo json_encode(['error' => $e->getMessage()]); }
     exit;
 }
 
-// ---------------------------------------------------------
-// モード2: データが存在する日付一覧を取得 (?action=get_dates)
-// ---------------------------------------------------------
 if (isset($_GET['action']) && $_GET['action'] === 'get_dates') {
     header('Content-Type: application/json; charset=utf-8');
     try {
         $pdo = new PDO($dsn, $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
-        
         $roomId = $_GET['room_id'] ?? 1;
-
-        // データが存在する日付だけを抽出（重複なし）
-        $sql = "SELECT DISTINCT DATE(measured_at) as available_date 
-                FROM sensor_logs 
-                WHERE room_id = :room_id
-                ORDER BY available_date DESC";
-        
+        $sql = "SELECT DISTINCT DATE(measured_at) as available_date FROM sensor_logs WHERE room_id = :room_id ORDER BY available_date DESC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute(['room_id' => $roomId]);
-        
-        // 配列をフラットにして返す (例: ["2026-01-30", "2026-01-29"])
-        $dates = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        echo json_encode($dates);
-    } catch (PDOException $e) {
-        echo json_encode([]);
-    }
+        echo json_encode($stmt->fetchAll(PDO::FETCH_COLUMN));
+    } catch (PDOException $e) { echo json_encode([]); }
     exit;
 }
 ?>
@@ -75,209 +38,202 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_dates') {
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>環境管理画面 - 教室詳細</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>環境管理詳細 - 学校スマート管理システム</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ja.js"></script> <style>
-        /* 基本レイアウト */
-        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
-        body { font-family: "Helvetica Neue", Arial, sans-serif; background: #eee; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 10px; box-sizing: border-box; }
-        
-        .detail-container { 
-            width: 98%; max-width: 1400px; height: 95vh; 
-            background: white; border: 1px solid #333; padding: 15px; 
-            display: flex; flex-direction: column; box-sizing: border-box;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-        
-        .detail-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 5px; margin-bottom: 10px; flex-shrink: 0; }
-        .header-left { font-weight: bold; font-size: 1.2em; display: flex; align-items: center; gap: 10px; }
-        .header-right { font-size: 1em; color: #555; font-weight: bold; display: flex; align-items: center; }
-        
-        /* カレンダー入力欄のスタイル調整 */
-        .flatpickr-input {
-            font-size: 1em; padding: 4px; margin-right: 15px;
-            border: 1px solid #ccc; border-radius: 4px; cursor: pointer;
-            background: #fff; width: 140px; text-align: center;
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ja.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-blue: #eef7ff;
+            --main-text: #333;
+            --card-bg: #ffffff;
+            --btn-blue: #007bff;
+            --btn-gray: #546e7a;
+            --eva-red: #ff0000;
+            --status-green: #d4edda;
+            --status-yellow: #fff3cd;
+            --status-red: #f8d7da;
         }
 
-        .badge { background: red; color: white; padding: 3px 15px; border-radius: 20px; font-size: 0.8em; }
-        .top-info-row { display: flex; gap: 20px; margin-bottom: 15px; flex-shrink: 0; }
-        .judgment-box { flex: 2; background: #ffff33; border: 3px solid #000; padding: 15px; border-radius: 12px; text-align: center; font-weight: bold; }
-        .main-status { font-size: 1.8em; }
-        .status-msg { font-size: 1.1em; margin-top: 5px; }
-        .risk-area { flex: 1.5; display: flex; justify-content: space-around; align-items: center; border: 1px solid #ccc; border-radius: 12px; padding: 5px; }
-        .risk-item { text-align: center; font-weight: bold; font-size: 1em; }
-        .status-circle { width: 50px; height: 50px; border-radius: 50%; border: 2px solid #333; margin: 5px auto; display: flex; align-items: center; justify-content: center; font-size: 1.1em; background: #fff; }
+        body { 
+            font-family: "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif; 
+            background: var(--bg-blue); color: var(--main-text);
+            margin: 0; padding: 20px;
+            display: flex; flex-direction: column; align-items: center;
+            transition: all 0.5s ease;
+            overflow-x: hidden;
+        }
 
-        .charts-container { flex-grow: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; } 
-        .chart-card { border: 1px solid #ccc; padding: 10px; display: flex; align-items: center; flex: 1; min-height: 0; background: #fff; }
-        .chart-info { width: 120px; text-align: center; border-right: 2px solid #eee; padding-right: 10px; flex-shrink: 0; }
-        .chart-title { font-weight: bold; font-size: 1.2em; }
-        .chart-value { font-size: 1.3em; font-weight: bold; margin-top: 5px; }
-        .chart-wrapper { flex: 1; height: 100%; width: 100%; position: relative; overflow: hidden; }
+        /* --- エマージェンシー演出：背景 --- */
+        body.emergency-mode {
+            background-color: #000 !important;
+            background-image: 
+                radial-gradient(circle, rgba(74, 0, 0, 0.6) 0%, #000 80%),
+                url('https://www.transparenttextures.com/patterns/hexellence.png') !important;
+            color: var(--eva-red) !important;
+        }
 
-        .footer-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 15px; flex-shrink: 0; }
-        .nav-btn { background: #dcdcdc; border: 2px solid #999; padding: 15px; text-decoration: none; color: black; font-weight: bold; text-align: center; font-size: 1.1em; border-radius: 6px; }
-        .btn-blue { background: #007bff; color: white; border-color: #0056b3; }
+        .eva-banner {
+            display: none; position: fixed; width: 200%; height: 35px;
+            background: var(--eva-red); color: black; font-weight: 900;
+            line-height: 35px; white-space: nowrap; font-size: 1.2em;
+            z-index: 9999; transform: rotate(-1.5deg);
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.7); pointer-events: none;
+            overflow: hidden;
+        }
+        @keyframes scrollText { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .eva-banner div { display: inline-block; animation: scrollText 8s linear infinite; }
+
+        body.emergency-mode .eva-banner { display: block; }
+        body.emergency-mode .card {
+            background: rgba(20, 0, 0, 0.85) !important;
+            border: 2px solid var(--eva-red) !important;
+            box-shadow: 0 0 30px var(--eva-red) !important;
+        }
+
+        /* --- レイアウト --- */
+        .container { width: 100%; max-width: 1200px; z-index: 10; position: relative; }
+        .page-title { font-size: 0.9em; color: #666; text-align: center; }
+        .current-time { font-size: 2.2em; font-weight: bold; text-align: center; margin-bottom: 25px; }
+        .card { background: var(--card-bg); border-radius: 15px; padding: 25px; margin-bottom: 25px; transition: all 0.5s; }
+        .header-controls { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0; padding-bottom: 20px; }
+        .top-status-grid { display: grid; grid-template-columns: 1.2fr 2fr; gap: 20px; margin-top: 20px; }
+        .judgment-box { border-radius: 12px; padding: 20px; text-align: center; min-height: 140px; display: flex; flex-direction: column; justify-content: center; }
+        .judgment-box.ok { background: var(--status-green); color: #155724; }
+        .judgment-box.warn { background: var(--status-yellow); color: #856404; }
+        .judgment-box.alert { background: var(--status-red); color: #721c24; }
+        
+        .risk-area { display: grid; grid-template-columns: repeat(4, 1fr); background: #fdfdfd; border: 1px solid #f2f2f2; border-radius: 12px; padding: 15px; }
+        .risk-item { text-align: center; font-size: 0.85em; font-weight: bold; }
+        #mite_label { cursor: pointer; user-select: none; }
+        .circle { width: 55px; height: 55px; border-radius: 50%; background: white; border: 2px solid #eee; margin: 12px auto; display: flex; align-items: center; justify-content: center; font-size: 1.1em; transition: background 0.3s; }
+        
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; margin-top: 25px; }
+        .chart-card { background: #fff; border: 1px solid #f5f5f5; border-radius: 12px; padding: 15px; }
+        .footer-btns { display: flex; gap: 20px; justify-content: center; margin-top: 5px; }
+        .btn { width: 260px; padding: 15px; text-align: center; text-decoration: none; border-radius: 10px; font-weight: bold; color: white; display: flex; align-items: center; justify-content: center; gap: 12px; }
+        .btn-gray { background: var(--btn-gray); }
+        .btn-blue { background: var(--btn-blue); }
     </style>
 </head>
 <body>
 
-<div class="detail-container">
-    <div class="detail-header">
-        <div class="header-left">
-            教室環境モニター
-            <select id="room_select" onchange="initCalendarAndCharts()" style="font-size: 1em; padding: 5px;">
-                <option value="1" selected>0-502</option>
-                <option value="2">0-504</option>
-                <option value="3">0-506</option>
-            </select>
-            <span id="light_badge" class="badge">--</span>
-        </div>
-        <div class="header-right">
-            <input type="text" id="date_select" placeholder="日付を選択">
-            <span>最終更新: <span id="last_update">--:--:--</span></span>
-        </div>
-    </div>
+<audio id="evaBgm" src="eva_bgm.mp3" loop></audio>
 
-    <div class="top-info-row">
-        <div id="judgment_box" class="judgment-box">
-            <div id="main_status" class="main-status">読み込み中...</div>
-            <div id="status_msg" class="status-msg">データを確認しています</div>
-        </div>
-        <div class="risk-area">
-            <div class="risk-item">感染症<div id="risk_infection" class="status-circle">--</div></div>
-            <div class="risk-item">カビ<div id="risk_mold" class="status-circle">--</div></div>
-            <div class="risk-item">ダニ<div id="risk_mite" class="status-circle">--</div></div>
-        </div>
-    </div>
+<div class="eva-banner" style="top: 0; left: -10%;"><div>EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY&nbsp;</div></div>
+<div class="eva-banner" style="bottom: 0; left: -10%;"><div>EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY&nbsp;</div></div>
 
-    <div class="charts-container">
-        <div class="chart-card">
-            <div class="chart-info"><div class="chart-title" style="color:red;">温度</div><div id="t_val" class="chart-value">--℃</div></div>
-            <div class="chart-wrapper"><canvas id="tChart"></canvas></div>
+<div class="container">
+    <div class="page-title">見えない環境を可視化する 学校スマート管理システム（グループ3）</div>
+    <div class="current-time" id="clock">--/--/-- (--) --:--</div>
+
+    <div class="card">
+        <div class="header-controls">
+            <div><i class="fas fa-door-open"></i> <select id="room_select" onchange="initCalendarAndCharts()"><option value="1">教室 0-502</option><option value="2">教室 0-504</option><option value="3">教室 0-506</option></select></div>
+            <div><i class="fas fa-calendar-alt"></i> <input type="text" id="date_select"></div>
+            <div style="font-size: 0.85em; color: #999;">最終更新: <span id="last_update">--:--</span></div>
         </div>
-        <div class="chart-card">
-            <div class="chart-info"><div class="chart-title" style="color:blue;">湿度</div><div id="h_val" class="chart-value">--%</div></div>
-            <div class="chart-wrapper"><canvas id="hChart"></canvas></div>
+
+        <div class="top-status-grid">
+            <div id="judgment_box" class="judgment-box ok">
+                <div id="main_status" style="font-size: 1.7em; font-weight: bold;">読込中...</div>
+                <div id="status_msg" style="margin-top: 8px; font-size: 0.95em;"></div>
+            </div>
+            <div class="risk-area">
+                <div class="risk-item">感染リスク<div id="risk_infection" class="circle">--</div></div>
+                <div class="risk-item">カビ発生<div id="risk_mold" class="circle">--</div></div>
+                <div class="risk-item" id="mite_label" onclick="handleSecretClick()">第10使徒ダニエル<div id="risk_mite" class="circle">--</div></div>
+                <div class="risk-item">照明状態<div id="light_badge" class="circle" style="font-size: 0.85em;">--</div></div>
+            </div>
         </div>
-        <div class="chart-card">
-            <div class="chart-info"><div class="chart-title" style="color:#555;">CO2</div><div id="c_val" class="chart-value">--ppm</div></div>
-            <div class="chart-wrapper"><canvas id="cChart"></canvas></div>
+
+        <div class="charts-grid">
+            <div class="chart-card"><div>温度 <span id="t_val" style="font-weight:bold;">--</span></div><div style="height: 150px;"><canvas id="tChart"></canvas></div></div>
+            <div class="chart-card"><div>湿度 <span id="h_val" style="font-weight:bold;">--</span></div><div style="height: 150px;"><canvas id="hChart"></canvas></div></div>
+            <div class="chart-card"><div>CO2 <span id="c_val" style="font-weight:bold;">--</span></div><div style="height: 150px;"><canvas id="cChart"></canvas></div></div>
         </div>
     </div>
 
     <div class="footer-btns">
-        <a href="home.php" class="nav-btn">トップページへ戻る</a>
-        <a href="attendance.php" class="nav-btn btn-blue">出席管理画面を開く</a>
+        <a href="home.php" class="btn btn-gray"><i class="fas fa-home"></i> トップページへ</a>
+        <a href="attendance.php" class="btn btn-blue"><i class="fas fa-user-check"></i> 出席管理画面へ</a>
     </div>
 </div>
 
 <script>
     let charts = {};
-    let datePicker = null; // カレンダーのインスタンス
+    let datePicker = null;
+    let clickCount = 0;
+    let isEmergency = false;
+    let lastData = null;
 
-    // グラフ初期化
+    // BGMコントロール
+    function toggleBgm(play) {
+        const audio = document.getElementById('evaBgm');
+        if (play) {
+            audio.currentTime = 0;
+            audio.play().catch(e => console.log("再生制限回避のためクリックが必要です"));
+        } else {
+            audio.pause();
+        }
+    }
+
+    function handleSecretClick() {
+        clickCount++;
+        if (clickCount >= 5) {
+            isEmergency = !isEmergency;
+            clickCount = 0;
+            document.body.classList.toggle('emergency-mode', isEmergency);
+            
+            toggleBgm(isEmergency); // BGM再生・停止
+
+            if (lastData) updateLogic(lastData);
+            Object.values(charts).forEach(c => {
+                c.options.scales.y.ticks.color = isEmergency ? '#ff0000' : '#666';
+                c.update();
+            });
+        }
+    }
+
     function initChart(id, color) {
         const ctx = document.getElementById(id).getContext('2d');
         charts[id] = new Chart(ctx, {
             type: 'line',
-            data: { datasets: [{ data: [], borderColor: color, pointRadius: 2, borderWidth: 2, fill: false, tension: 0.1 }] },
-            options: {
-                responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                scales: {
-                    y: { ticks: { font: { size: 11, weight: 'bold' } }, grid: { color: '#f0f0f0' } },
-                    x: { type: 'time', time: { unit: 'hour', displayFormats: { hour: 'HH:mm' }, tooltipFormat: 'HH:mm' }, ticks: { font: { size: 10 } }, grid: { display: false }, min: undefined, max: undefined }
+            data: { datasets: [{ data: [], borderColor: color, pointRadius: 0, borderWidth: 2, fill: true, backgroundColor: color + '15', tension: 0.3 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                scales: { 
+                    y: { ticks: { font: { size: 10 } } },
+                    x: { type: 'time', time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } }, ticks: { font: { size: 9 } } }
                 }
             }
         });
     }
 
-    // カレンダーとグラフの初期化・更新
     async function initCalendarAndCharts() {
         const roomId = document.getElementById('room_select').value;
-        
-        try {
-            // 1. その部屋でデータが存在する日付一覧を取得
-            const res = await fetch(`?action=get_dates&room_id=${roomId}`);
-            const availableDates = await res.json();
-
-            // 最新の日付（あれば）
-            const latestDate = availableDates.length > 0 ? availableDates[0] : new Date().toISOString().split('T')[0];
-
-            // 2. カレンダー(Flatpickr)を設定
-            if (datePicker) datePicker.destroy(); // 既存があれば破棄
-
-            datePicker = flatpickr("#date_select", {
-                locale: "ja",             // 日本語化
-                defaultDate: latestDate,  // 初期値は最新のデータ日
-                enable: availableDates,   // リストにある日だけ有効化
-                disableMobile: true,      // モバイルでもこのUIを強制
-                onChange: function(selectedDates, dateStr, instance) {
-                    updateAll(dateStr);   // 日付変更時にグラフ更新
-                }
-            });
-
-            // 3. グラフも更新
-            updateAll(latestDate);
-
-        } catch (e) {
-            console.error("Calendar Init Error:", e);
-        }
+        const res = await fetch(`?action=get_dates&room_id=${roomId}`);
+        const availableDates = await res.json();
+        const latestDate = availableDates[0] || new Date().toISOString().split('T')[0];
+        if (datePicker) datePicker.destroy();
+        datePicker = flatpickr("#date_select", { locale: "ja", defaultDate: latestDate, enable: availableDates, onChange: (sd, dateStr) => updateAll(dateStr) });
+        updateAll(latestDate);
     }
 
-    // データ更新処理
     async function updateAll(dateVal) {
         const roomId = document.getElementById('room_select').value;
-        
-        // 時間軸設定
-        const startTime = new Date(`${dateVal}T00:00:00`).getTime();
-        const endTime   = new Date(`${dateVal}T23:59:59`).getTime();
-
-        ['tChart', 'hChart', 'cChart'].forEach(id => {
-            charts[id].options.scales.x.min = startTime;
-            charts[id].options.scales.x.max = endTime;
-            charts[id].update('none');
-        });
-
-        try {
-            const res = await fetch(`?ajax=1&room_id=${roomId}&date=${dateVal}`);
-            const data = await res.json();
-            
-            if (!data || data.length === 0 || data.error) {
-                ['tChart','hChart','cChart'].forEach(id => updateChartData(id, []));
-                resetDisplay();
-                return;
-            }
-
-            const tData = data.map(r => ({ x: r.measured_at, y: r.temperature }));
-            const hData = data.map(r => ({ x: r.measured_at, y: r.humidity }));
-            const cData = data.map(r => ({ x: r.measured_at, y: r.co2 }));
-
-            updateChartData('tChart', tData);
-            updateChartData('hChart', hData);
-            updateChartData('cChart', cData);
-
-            const latest = data[data.length - 1];
-            document.getElementById('t_val').innerText = `${parseFloat(latest.temperature).toFixed(1)}℃`;
-            document.getElementById('h_val').innerText = `${Math.round(latest.humidity)}%`;
-            document.getElementById('c_val').innerText = `${latest.co2}`;
-            document.getElementById('last_update').innerText = latest.measured_at.split(' ')[1].substring(0,5);
-
-            const isOn = parseInt(latest.illuminance) > 100;
-            const badge = document.getElementById('light_badge');
-            badge.innerText = isOn ? "点灯中" : "消灯";
-            badge.style.background = isOn ? "red" : "#777";
-
-            updateLogic(latest);
-
-        } catch (e) { console.error(e); resetDisplay(); }
+        const res = await fetch(`?ajax=1&room_id=${roomId}&date=${dateVal}`);
+        const data = await res.json();
+        if (!data.length) return;
+        lastData = data[data.length - 1];
+        updateChartData('tChart', data.map(r => ({ x: r.measured_at, y: r.temperature })));
+        updateChartData('hChart', data.map(r => ({ x: r.measured_at, y: r.humidity })));
+        updateChartData('cChart', data.map(r => ({ x: r.measured_at, y: r.co2 })));
+        updateLogic(lastData);
     }
 
     function updateChartData(id, dataset) {
@@ -285,60 +241,123 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_dates') {
         charts[id].update();
     }
 
-    function resetDisplay() {
-        document.getElementById('t_val').innerText = "--℃";
-        document.getElementById('h_val').innerText = "--%";
-        document.getElementById('c_val').innerText = "--";
-        document.getElementById('main_status').innerText = "データなし";
-        document.getElementById('status_msg').innerText = "データがありません";
-        document.getElementById('judgment_box').style.background = "#eee";
-        document.getElementById('light_badge').style.background = "#777";
-        document.getElementById('light_badge').innerText = "--";
-        ['risk_infection', 'risk_mold', 'risk_mite'].forEach(id => {
-            const el = document.getElementById(id);
-            el.innerText = "--"; el.style.background = "white";
-        });
+    function setRiskUI(elementId, level) {
+        const el = document.getElementById(elementId);
+        el.innerText = level;
+        if (isEmergency) {
+            el.style.background = "#000";
+            el.style.color = "#ff0000";
+            return;
+        }
+        
+        if (level === "高") {
+            el.style.background = "var(--status-red)";
+            el.style.color = "#721c24";
+        } else if (level === "中") {
+            el.style.background = "var(--status-yellow)";
+            el.style.color = "#856404";
+        } else {
+            el.style.background = "var(--status-green)";
+            el.style.color = "#155724";
+        }
     }
 
     function updateLogic(latest) {
         const hum = parseInt(latest.humidity);
         const co2 = parseInt(latest.co2);
-        const infRisk = document.getElementById('risk_infection');
         const box = document.getElementById('judgment_box');
-        const mainSt = document.getElementById('main_status');
+        const st = document.getElementById('main_status');
         const msg = document.getElementById('status_msg');
 
-        infRisk.innerText = "--"; infRisk.style.background = "white";
+        // 数値表示更新
+        document.getElementById('t_val').innerText = `${parseFloat(latest.temperature).toFixed(1)}℃`;
+        document.getElementById('h_val').innerText = `${Math.round(latest.humidity)}%`;
+        document.getElementById('c_val').innerText = `${latest.co2}ppm`;
+        document.getElementById('last_update').innerText = latest.measured_at.split(' ')[1].substring(0,5);
 
-        if (hum <= 40) {
-            infRisk.innerText = "高"; infRisk.style.background = "#ff4444";
-            box.style.background = "#ffff33"; mainSt.innerText = "状態：乾燥"; msg.innerText = "湿度が低いです。加湿器を稼働させてください。";
-        } else if (co2 > 1000) {
-            infRisk.innerText = "中"; infRisk.style.background = "#ffff00";
-            box.style.background = "#ffbbbb"; mainSt.innerText = "状態：要換気"; msg.innerText = "CO2濃度が基準を超えています。";
+        // 照明
+        const isOn = parseInt(latest.illuminance) > 500;
+        const lb = document.getElementById('light_badge');
+        lb.innerText = isOn ? "点灯" : "消灯";
+        lb.style.background = isOn ? "var(--status-yellow)" : "#eee";
+
+        // --- リスク判定ロジック（通常時のラベルを先に決定） ---
+        let infLevel = (co2 >= 1000) ? "高" : (co2 >= 700 ? "中" : "低");
+        let moldLevel = (hum >= 70) ? "高" : (hum >= 60 ? "中" : "低");
+        let miteLevel = (hum >= 70) ? "高" : (hum >= 60 ? "中" : "低");
+
+        if (isEmergency) {
+            // エヴァモードの表示設定
+            box.className = "judgment-box alert";
+            st.innerText = "第1種警戒態勢";
+            msg.innerText = "パターン青！使徒を確認。ただちに換気システムを最大出力で稼働せよ。";
+
+            // 通常時のリスク（高・中・低）をエヴァ風漢字に変換してセット
+            const evaDict = {
+                "infection": { "高": "極", "中": "戒", "低": "微" },
+                "mold":      { "高": "蔓", "中": "殖", "低": "無" },
+                "mite":      { "高": "襲", "中": "潜", "低": "未" }
+            };
+
+            setRiskUI('risk_infection', evaDict.infection[infLevel]);
+            setRiskUI('risk_mold',      evaDict.mold[moldLevel]);
+            setRiskUI('risk_mite',      evaDict.mite[miteLevel]);
         } else {
-            infRisk.innerText = "低"; infRisk.style.background = "#00ff00";
-            box.style.background = "#ccffcc"; mainSt.innerText = "状態：良好"; msg.innerText = "快適な環境が保たれています。";
+            // 通常モードの表示設定
+	    // 通常モードの表示設定（複合警告対応）
+		// 通常モードの表示設定（複合警告：乾燥＋カビ対応）
+		const isCo2High = co2 > 1000;
+		const isDry = hum < 40;
+		const isHumHigh = hum >= 70;   // カビ注意ライン
+
+		if (isCo2High && isDry) {
+		    box.className = "judgment-box alert";
+		    st.innerText = "複合警告";
+		    msg.innerText = "CO2濃度が高く、湿度も低下しています。換気と加湿を同時に行ってください。";
+
+		} else if (isCo2High && isHumHigh) {
+		    box.className = "judgment-box alert";
+		    st.innerText = "複合警告";
+		    msg.innerText = "CO2濃度が高く、湿度も高めです。換気と除湿を行い、カビ発生を防いでください。";
+
+		} else if (isCo2High) {
+		    box.className = "judgment-box alert";
+		    st.innerText = "要換気";
+		    msg.innerText = "CO2濃度が高めです。換気が必要です。";
+
+		} else if (isDry) {
+		    box.className = "judgment-box warn";
+		    st.innerText = "乾燥注意";
+		    msg.innerText = "湿度が低めです。加湿を検討してください。";
+
+		} else if (isHumHigh) {
+		    box.className = "judgment-box warn";
+		    st.innerText = "カビ注意";
+		    msg.innerText = "湿度が高めです。除湿や換気を行ってください。";
+
+		} else {
+		    box.className = "judgment-box ok";
+		    st.innerText = "良好";
+		    msg.innerText = "良好な室内環境です。";
+		}
+
+
+            setRiskUI('risk_infection', infLevel);
+            setRiskUI('risk_mold', moldLevel);
+            setRiskUI('risk_mite', miteLevel);
         }
     }
 
-    // 起動時の処理
-    window.onload = function() {
-        initChart('tChart', 'red');
-        initChart('hChart', 'blue');
-        initChart('cChart', 'gray');
-        
-        // カレンダーとデータの初期化を一括で行う
+    window.onload = () => {
+        initChart('tChart', '#e74c3c');
+        initChart('hChart', '#3498db');
+        initChart('cChart', '#546e7a');
         initCalendarAndCharts();
-
-        // 5秒ごとに最新データ更新（日付は今の選択状態を維持）
         setInterval(() => {
-            if (datePicker && datePicker.selectedDates.length > 0) {
-                // カレンダーで選択中の日付形式を取得 (YYYY-MM-DD)
-                const currentStr = datePicker.formatDate(datePicker.selectedDates[0], "Y-m-d");
-                updateAll(currentStr);
-            }
-        }, 5000);
+            const now = new Date();
+            const d = ['日','月','火','水','木','金','土'];
+            document.getElementById('clock').innerText = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}(${d[now.getDay()]}) ${now.getHours()}:${now.getMinutes().toString().padStart(2,'0')}`;
+        }, 1000);
     };
 </script>
 </body>

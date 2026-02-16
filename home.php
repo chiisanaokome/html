@@ -79,7 +79,7 @@ if (isset($_GET['api']) && $_GET['api'] === 'attendance') {
         .summary-label { font-size: 0.85em; color: #888; margin-bottom: 8px; font-weight: bold; }
         .summary-value { font-size: 1.5em; font-weight: bold; color: #34495e; }
 
-        .alert-section { background-color: #fff9e6; margin: 25px; padding: 20px; border-radius: 10px; border-left: 6px solid #f1c40f; }
+        .alert-section { background-color: #fff9e6; margin: 25px; padding: 20px; border-radius: 10px; border-left: 6px solid #f1c40f; max-height: 200px; overflow-y: auto;}
         .alert-title { color: #856404; font-weight: bold; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
         .alert-list { margin: 0; padding-left: 25px; font-size: 0.95em; line-height: 1.6; color: #856404; }
 
@@ -223,9 +223,9 @@ async function fetchLatestData() {
                     alerts.push(`教室 ${r.room_name} : CO2濃度が高いため換気をしてください`);
                 }
                 // 在室0名なのに照明が点いている場合の警告
-                if (id === 2 && lightOn && attendanceCount === 0) {
-                    alerts.push(`教室 ${r.room_name} : 在室0名で照明が点灯しています`);
-                }
+                if (lightOn && attendanceCount === 0) {
+		    alerts.push(`教室 ${r.room_name} : 在室0名で照明が点灯しています`);
+		}
             }
         } catch (e) { 
             console.error('センサーデータ取得エラー:', e); 

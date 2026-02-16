@@ -206,7 +206,15 @@ body { font-family:"Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", Meiryo,
 
 <div class="summary-bar">
     <div class="summary-item"><div class="summary-label">対象授業</div><div class="summary-value"><?= $target_subject_name ?: '<span style="color:#ccc">未選択</span>' ?></div></div>
-
+    <div class="summary-item"><div class="summary-label">出席率</div>
+        <div class="summary-value">
+        <?php 
+            if($target_schedule_id && count($all_students) > 0) {
+                echo number_format((array_sum($total_attendance_data) / $total_classes) * 100, 1);
+            } else { echo "0.0"; }
+        ?>%
+        </div>
+    </div>
     <div class="summary-item"><div class="summary-label">最終更新</div><div class="summary-value" style="font-size:22px;"><?= date('H時i分s秒') ?></div></div>
 </div>
 
@@ -274,7 +282,7 @@ body { font-family:"Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", Meiryo,
 <?php endif; ?>
 
 <div class="footer-nav">
-<a href="detail.php" class="nav-link nav-env"><i class="fa-solid fa-chart-line"></i> 環境管理画面へ</a>
+<a href="env_monitor.php" class="nav-link nav-env"><i class="fa-solid fa-chart-line"></i> 環境管理画面へ</a>
 <a href="home.php" class="nav-link nav-home"><i class="fa-solid fa-house"></i> トップページへ</a>
 </div>
 </div>
