@@ -123,7 +123,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_dates') {
 </head>
 <body>
 
-<audio id="evaBgm" src="eva_bgm.mp3" loop></audio>
+<audio id="evaBgm" src="evaBgm.mp3" loop></audio>
 
 <div class="eva-banner" style="top: 0; left: -10%;"><div>EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY&nbsp;</div></div>
 <div class="eva-banner" style="bottom: 0; left: -10%;"><div>EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY EMERGENCY&nbsp;</div></div>
@@ -147,7 +147,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'get_dates') {
             <div class="risk-area">
                 <div class="risk-item">感染リスク<div id="risk_infection" class="circle">--</div></div>
                 <div class="risk-item">カビ発生<div id="risk_mold" class="circle">--</div></div>
-                <div class="risk-item" id="mite_label" onclick="handleSecretClick()">第10使徒ダニエル<div id="risk_mite" class="circle">--</div></div>
+                <div class="risk-item" id="mite_label" onclick="handleSecretClick()">ダニ発生<div id="risk_mite" class="circle">--</div></div>
                 <div class="risk-item">照明状態<div id="light_badge" class="circle" style="font-size: 0.85em;">--</div></div>
             </div>
         </div>
